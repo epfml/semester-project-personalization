@@ -54,7 +54,7 @@ class Net(nn.Module):
 
 wandb.init(
     project="personalization",
-    name = "2 FMNIST + FMNIST-F - agg = 1+F",
+    name = "3 FMNIST Baseline",
     # track hyperparameters and run metadata
     config={
         "learning_rate": learning_rate,
@@ -156,19 +156,18 @@ def averaging(gradients):
     return grads
 
 
-train_loader1, test_loader1 = load_Fashion_MNIST()
-train_loader2, test_loader2 = load_Fashion_MNIST()
-train_loader3, test_loader3 = load_Fashion_MNIST()
+train_loader1, test_loader1 = load_Fashion_MNIST(batch_size_train, batch_size_test)
+train_loader2, test_loader2 = load_Fashion_MNIST(batch_size_train, batch_size_test)
+train_loader3, test_loader3 = load_Fashion_MNIST(batch_size_train, batch_size_test)
 
 # print(train_loader3.dataset.targets)
-train_loader3.dataset.targets = (train_loader2.dataset.targets + 5) % 10
+# train_loader3.dataset.targets = (train_loader2.dataset.targets + 5) % 10
 # print(train_loader3.dataset.targets)
 
 
 model1 = Net().to(device)
-model2 = Net().to(device)
-model3 = Net().to(device)
+
 
 # print(device, type(train_loader1))
 
-decentralized_train(model1, [model1, model2, model3], test_loader1, n_epochs, averaging, [train_loader1, train_loader2, train_loader3])
+centralized_train(model1, test_loader1, n_epochs, averaging, *[train_loader1, train_loader2, train_loader3])
