@@ -22,7 +22,8 @@ $$
 
 Now we can construct a simple stochastic estimate of the above full gradient simply by computing the stochastic estimate of $\nabla \bar{f}^1(x_s, x_d)$ and $\nabla \bar{f}^2(x_s, x_d')$ and rearrage the coordinates and multiply constants in a similar manner. 
 ​
-If we assume the objectives are smooth and non-convex, we can already derive the convergence rate of this stochastic estimate. The proof is almost identical to the proof of SGD for $\min_x f(x)$. The only difference is that now our stochastic estimate has a different variance $\sigma^2$. Let us assume the variance of $\partial_{x_s} f_i(x_s, x_d)$ is $\sigma_{s}^2$ and $\tilde{\sigma}_{s}^2$ for $G_1$ and $G_2$ respectively and the variance of $\partial_{x_d} f_i(x_s, x_d)$ and $\partial_{x_{d'}} f_i(x_s, x_d)$ are $\sigma_d^2$ and $\tilde{\sigma}_d^2$. Note that we assume all randomness are independent and therefore the variance of stochastic estimates of $\nabla\bar{f}^1$, $\nabla\bar{f}^2$ reduce with the number of gradients they averaged. Then
+If we assume the objectives are smooth and non-convex, we can already derive the convergence rate of this stochastic estimate. The proof is almost identical to the proof of SGD for $\min_x f(x)$. The only difference is that now our stochastic estimate has a different variance $\sigma^2$. 
+Let us assume the variance of $\partial_{x_s} f_i(x_s, x_d)$ is $\sigma_{s}^2$ and $\tilde{\sigma_{s}}^2$ for $G_1$ and $G_2$ respectively and the variance of $\partial_{x_d} f_i(x_s, x_d)$ and $\partial_{x_{d'}} f_i(x_s, x_d)$ are $\sigma_d^2$ and $\tilde{\sigma}_d^2$. Note that we assume all randomness are independent and therefore the variance of stochastic estimates of $\nabla\bar{f}^1$, $\nabla\bar{f}^2$ reduce with the number of gradients they averaged. Then
 
 $$
 \sigma^2 = \left(\frac{\frac{|G_1|}{n}\sigma^2_s+\frac{|G_2|}{n}\tilde{\sigma}^2_s}{n} \right) + \left(\frac{|G_1|}{n^2}\sigma_d^2\right)+ \left(\frac{|G_2|}{n^2}\sigma_{d'}^2\right)
