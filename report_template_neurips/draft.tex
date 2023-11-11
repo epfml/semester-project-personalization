@@ -1,0 +1,1746 @@
+\documentclass{article}
+
+% if you need to pass options to natbib, use, e.g.:
+%     \PassOptionsToPackage{numbers, compress}{natbib}
+% before loading neurips_2020
+
+% ready for submission
+% \usepackage{neurips_2020}
+
+% to compile a preprint version, e.g., for submission to arXiv, add add the
+% [preprint] option:
+%     \usepackage[preprint]{neurips_2020}
+
+% to compile a camera-ready version, add the [final] option, e.g.:
+%     \usepackage[final]{neurips_2020}
+
+% to avoid loading the natbib package, add option nonatbib:
+\usepackage[nonatbib]{neurips_2020}
+
+\usepackage[utf8]{inputenc} % allow utf-8 input
+\usepackage[T1]{fontenc}    % use 8-bit T1 fonts
+\usepackage[]{hyperref}       % hyperlinks
+\usepackage{url}            % simple URL typesetting
+\usepackage{booktabs}       % professional-quality tables
+\usepackage{amsfonts}       % blackboard math symbols
+\usepackage{amssymb,amsmath,amsthm}
+\usepackage{nicefrac}       % compact symbols for 1/2, etc.
+\usepackage{microtype}      % microtypography
+\usepackage{algorithm}
+\usepackage{algpseudocode}  % http://mirror.kumi.systems/ctan/macros/latex/contrib/algorithmicx/algorithmicx.pdf
+\usepackage{graphicx}
+
+\usepackage{lipsum}         % for dummy text
+\usepackage{xspace}         % for at the end of macros
+\usepackage{xargs}          % defines \newcommandx
+\usepackage{mathtools}
+\usepackage{bm}
+\usepackage[dvipsnames]{xcolor} % defines \textcolor
+\usepackage{tabularx}       % like this for tables
+\usepackage{wrapfig}        % left- and right-floating figures+tables
+
+\usepackage[export]{adjustbox}
+
+
+\usepackage{tikz}           % for drawing
+\usepackage{ifthen}
+\usepackage{enumitem}
+\usepackage{cleveref}
+\usetikzlibrary{patterns}
+\usetikzlibrary{positioning}
+
+\newcommand\includegraphicscrop[1]{%
+\immediate\write18{pdfcrop -hires #1.pdf #1-crop.pdf}%
+\includegraphics{#1-crop.pdf}%
+}
+     
+\input{macros}
+
+\DeclareMathAlphabet{\mathpzc}{OT1}{pzc}{m}{it}
+% \newcommand{\gset}{\ensuremath{\cV_{\mathpzc{R}}}}
+% \newcommand{\bset}{\ensuremath{\cV_{\mathpzc{B}}}}
+\newcommand{\gset}{\ensuremath{{\mathpzc{G}}}}
+\newcommand{\bset}{\ensuremath{{\mathpzc{B}}}}
+\newcommand{\gcset}{\ensuremath{{\mathpzc{G_c}}}}
+\newcommand{\bcset}{\ensuremath{{\mathpzc{B_c}}}}
+\newcommand{\gfset}{\ensuremath{{\mathpzc{G_f}}}}
+\newcommand{\bfset}{\ensuremath{{\mathpzc{B_f}}}}
+\newcommand{\cpG}{{{\mathsf{G}}}}
+\newcommand{\cpH}{{{\mathsf{H}}}}
+\newcommand{\cpC}{{{\mathsf{C}}}}
+
+
+\title{Privacy-preserving robust federated learning}
+
+% The \author macro works with any number of authors. There are two commands
+% used to separate the names and addresses of multiple authors: \And and \AND.
+%
+% Using \And between authors leaves it to LaTeX to determine where to break the
+% lines. Using \AND forces a line break at that point. So, if LaTeX puts 3 of 4
+% authors names on the first line, and the last on the second line, try using
+% \AND instead of \And before the third author name.
+
+\author{%
+  David S.~Hippocampus\thanks{Use footnote for providing further information
+    about author (webpage, alternative address)---\emph{not} for acknowledging
+    funding agencies.} \\
+  Department of Computer Science\\
+  Cranberry-Lemon University\\
+  Pittsburgh, PA 15213 \\
+  \texttt{hippo@cs.cranberry-lemon.edu} \\
+  % examples of more authors
+  % \And
+  % Coauthor \\
+  % Affiliation \\
+  % Address \\
+  % \texttt{email} \\
+  % \AND
+  % Coauthor \\
+  % Affiliation \\
+  % Address \\
+  % \texttt{email} \\
+  % \And
+  % Coauthor \\
+  % Affiliation \\
+  % Address \\
+  % \texttt{email} \\
+  % \And
+  % Coauthor \\
+  % Affiliation \\
+  % Address \\
+  % \texttt{email} \\
+}
+
+\begin{document}
+
+\maketitle
+
+%\begin{abstract}
+%    
+%\end{abstract}
+
+
+\section{Convergence of SGD}
+
+
+\subsection{Standard objective function}
+
+
+Let $f_1, \ldots, f_n : \mathbb X \to \mathbb R$ be functions and let $F = \frac{1}{n} \sum_{i=1}^n f_i$, where $X$ is a convex subset of $\mathbb R^n$. We suppose $F$ has some global minimum $F^\ast$. Let $(x_t)_t$ be a sequence of the stochastic gradient descent for $F$, i.e. $x_0$ is any point in $X$ and for $t \geq 0$ we have $x_{t+1} = x_t - \gamma_t g_t$. Here $\gamma_t > 0$ is the step size and $g_t = \nabla f_i (x_t)$ is the stochastic gradient, where $i \in \{1, \ldots, n\}$ is chosen uniformly at random.
+
+We choose a constant step size $\gamma_t = \gamma$ and we assume it is at most $1/L$.
+
+
+
+\begin{lemma}\label{lem:sgd-convergence}
+  Suppose $F$ is $L$-smooth, i.e.
+  \[
+    F(y) \leq F(x) + \nabla F(x)^\top (y - x) + \frac{L}{2} \norm{x - y}_2^2
+  \]
+  for all $x, y$. Suppose also the gradient of $F$ has ``bounded variance'' in the following sense:
+  \[
+    \expec[i]{\norm{\nabla F(x) - \nabla f_i(x)}_2^2} \leq \sigma^2
+  \]
+  for all $x$.
+  Then we have
+  \[
+    \expec{ \frac{1}{T} \sum_{t=0}^{T-1} \norm{\nabla F(x_t)}_2^2 }
+    \leq
+    \frac{2\left(F(x_0) - F^\ast\right)}{\gamma T} + L \gamma \sigma^2
+    \, .
+  \]
+\end{lemma}
+
+
+\begin{proof}
+  Thanks to the uniformity of the random $i$ in $g_t = \nabla f_i (x_t)$ we get the conditional expectation
+  \[
+    \expec{g_t \,|\, x_t} = \frac{1}{n} \sum_{i=1}^n \nabla f_i(x_t) = \nabla F(x_t)
+    \, ,
+  \]
+  so the vector $g_t - \nabla F(x_t)$ is zero in expectation. This allows us to get rid of the inner product term in the following computation to upper bound the expected squared norm of the gradient $g_t$:
+  \begin{align*}
+    \expec{\norm{g_t}_2^2  \,\big|\, x_t}
+     & =
+    \expec{\norm{g_t - \nabla F(x_t) + \nabla F(x_t)}_2^2  \,\big|\, x_t}
+    \\
+     & =
+    \expec{\norm{g_t\ - \nabla F(x_t)}_2^2  \,\big|\, x_t} + \norm{\nabla F(x_t)}_2^2 + 2 \expec{ \inp*{g_t - \nabla F(x_t)}{\nabla F(x_t)} \,\big|\, x_t}
+    \\
+     & \leq
+    \sigma^2 + \norm{\nabla F(x_t)}_2^2
+    \, ,
+  \end{align*}
+  where we used the variance bound for the last inequality.
+  Using the smoothness condition we get
+  \[
+    F(x_{t+1}) \leq F(x_t) - \gamma \nabla F(x_t)^\top g_t + \frac{L}{2} \gamma^2 \norm{g_t}_2^2
+    \, ,
+  \]
+  and then taking the conditional expectation we obtain thanks to the bound computed before
+  \begin{align*}
+    \expec{F(x_{t+1})  \,|\, x_t}
+     & \leq
+    F(x_t) - \gamma \nabla F(x_t)^\top \expec{g_t \,|\, x_t} + \frac{L}{2} \gamma^2 \expec{\norm{g_t}_2^2 \,\big|\, x_t}
+    \\
+     & \leq
+    F(x_t) - \gamma \norm{\nabla F(x_t)}_2^2 + \frac{L}{2} \gamma^2  (\sigma^2 + \norm{\nabla F(x_t)}_2^2)
+    \\
+     & =
+    F(x_t) - (\gamma - \frac{L}{2} \gamma^2) \norm{\nabla F(x_t)}_2^2 + \frac{L}{2} \gamma^2  \sigma^2
+    \\
+     & \leq
+    F(x_t) - \frac{\gamma}{2} \norm{\nabla F(x_t)}_2^2 + \frac{L}{2} \gamma^2  \sigma^2
+    \, .
+  \end{align*}
+  where for the last inequality we used the assumption $\gamma \leq 1/L$ to make the bound $\gamma - \gamma^2 L/2 \geq \gamma - \gamma/2 = \gamma/2$.
+  Rearranging the terms we get
+  \[
+    \norm{\nabla F(x_t)}_2^2
+    \leq
+    \frac{2}{\gamma} \Bigl(F(x_t) - \expec{F(x_{t+1}) \,|\, x_t}  + \gamma^2 \sigma^2 L/2 \Bigr)
+    \, .
+  \]
+  Taking the (unconditional) expectation and summing over $t$ on both sides yields
+  \begin{align*}
+    \expec{ \sum_{t=0}^{T-1} \norm{\nabla F(x_t)}_2^2 }
+     & \leq
+    \frac{2}{\gamma} \left(\sum_{t=0}^{T-1} \expec{F(x_t)} - \sum_{t=0}^{T-1} \expec{F(x_{t+1})} + T \gamma^2 \sigma^2 L/2 \right)
+    \\
+     & =
+    \frac{2}{\gamma}  \left(F(x_0) - \expec{F(x_{T})}\right) + L T \gamma \sigma^2
+    \\
+     & \leq
+    \frac{2}{\gamma}  \left(F(x_0) - F^\ast\right) + L T \gamma \sigma^2
+  \end{align*}
+  from which the result follows immediately.
+\end{proof}
+
+
+
+\subsection{General objective function}
+
+
+
+Now we consider the more general setting where the objective function is $F(x) = \expec[\xi]{f(x;\xi)}$, where $\xi$ follows some probability distribution $\mathcal D$. The gradient updates are adapted to $x_{t+1} = x_t - \gamma g_t$ where now $g_t = \nabla f(x_t; \xi)$ with $\xi$ being chosen randomly according to the distribution $\mathcal D$.
+
+%\comment{I think we need not only $F$'s gradient to be bounded but also $\nabla_x f(x; \xi)$ to be bounded, to be able to interchange derivatives and expectation. Or at least something like $\forall x : \norm{\nabla_x f(x; \xi)} \leq Z$ (almost surely on $\xi$) for some r.v. $Z$ with finite expectation, to be able to apply the dominated convergence theorem.}
+
+
+
+\begin{lemma}\label{lem:sgd-convergence-general}
+  Suppose $F$ is $L$-smooth, i.e.
+  \[
+    F(y) \leq F(x) + \nabla F(x)^\top (y - x) + \frac{L}{2} \norm{x - y}_2^2
+  \]
+  for all $x, y$. Suppose also the gradient of $f$ has ``bounded variance'' in the following sense:
+  \[
+    \expec[\xi]{\norm{\nabla F(x) - \nabla f(x; \xi)}_2^2} \leq \sigma^2
+  \]
+  for all $x$.
+  Then we have
+  \[
+    \expec{ \frac{1}{T} \sum_{t=0}^{T-1} \norm{\nabla F(x_t)}_2^2 }
+    \leq
+    \frac{2\left(F(x_0) - F^\ast\right)}{\gamma T} + L \gamma \sigma^2
+    \, .
+  \]
+\end{lemma}
+
+
+\begin{proof}
+  Interchanging derivatives and expectation we get
+  \[
+    \expec{g_t \,|\, x_t} = \expec{\nabla f(x_t; \xi) \,|\, x_t} = \nabla \expec{f(x_t; \xi) \,|\, x_t} = \nabla F(x_t)
+    \, .
+  \]
+  Thanks to this equality the exact same proof as in lemma~\ref{lem:sgd-convergence} works.
+\end{proof}
+
+
+
+\begin{lemma}\label{lem:sgd-stepsize}
+  The step size that minimizes the upper bound in
+  \[
+    \expec{ \frac{1}{T} \sum_{t=0}^{T-1} \norm{\nabla F(x_t)}_2^2 }
+    \leq
+    \frac{2\left(F(x_0) - F^\ast\right)}{\gamma T} + L \gamma \sigma^2
+  \]
+  is
+  \[
+    \gamma = \sqrt{\frac{2(F(x_0) - F^\ast)}{T L \sigma^2}}
+    \, .
+  \]
+  For this value of $\gamma$ the upper bound becomes
+  \[
+    2 \sqrt{\frac{2L \sigma^2 (F(x_0) - F^\ast)}{T}}
+    \, .
+  \]
+\end{lemma}
+
+
+\begin{proof}
+  The upper bound has the form $G(\gamma) = A/\gamma + B\gamma$ with $A = 2(F(x_0) - F^\ast) / T$ and $B = L \sigma^2$. The result follows by noticing that the derivative $G'(\gamma) = B - A/\gamma^2$ vanishes at $\gamma = \sqrt{A/B}$, and that $G(\sqrt{A/B}) = 2\sqrt{AB}$.
+\end{proof}
+
+
+
+\begin{lemma}[Convergence rate of SGD]\label{lem:sgd-convergence-rate}
+  Let $\varepsilon > 0$. Suppose the number of steps $T$ is at least
+  \[
+    \frac{8 L \sigma^2 (F(x_0) - F^\ast)}{\varepsilon^2}
+  \]
+  and use the step size $\gamma$ from lemma~\ref{lem:sgd-stepsize}.
+  Then we have the following bound on the SGD:
+  \[
+    \expec{ \frac{1}{T} \sum_{t=0}^{T-1} \norm{\nabla F(x_t)}_2^2 }
+    \leq
+    \varepsilon
+    \, ,
+  \]
+  i.e. the convergence rate of the SGD is $T = O(\varepsilon^{-2})$.
+
+\end{lemma}
+
+
+\begin{proof}
+  Inserting the prescribed value of the lower bound on $T$ in the upper bound in lemma~\ref{lem:sgd-stepsize} gives the desired result.
+\end{proof}
+
+
+\subsection{Federated SGD}
+
+
+In the federated learning setting we suppose there are $n$ clients, each client $i$ having an objective function $\expec[\xi_i]{f_i(x; \xi_i)}$ where $\xi_i$ follows some distribution $\mathcal D_i$. The server performs the aggregation by taking the average of the client's objectives, leading to the global objective function
+\[
+  F(x) = \frac{1}{n} \sum_{i=1}^n \expec[\xi_i]{f_i(x; \xi_i)}
+  \, .
+\]
+The SGD updates are performed as follows:
+\begin{enumerate}
+  \item for each $i$ in $[n]$ the client $i$ computes the gradient $g_{t,i} = \nabla f_i(x_t; \xi_i)$;
+
+  \item the server updates
+        \[
+          x_{t+1} = x_t - \gamma \frac{1}{n} \sum_{i=1}^n g_{t,i}
+          \, .
+        \]
+\end{enumerate}
+
+For simplicity we will denote the average $\frac{1}{n} \sum_{i=1}^n g_{t,i}$ by $g_t$.
+
+
+\begin{lemma}\label{lem:sgd-federated-convergence}
+  Suppose $F$ is $L$-smooth and suppose the following ``variance bound'' for every $i$ and every $x$:
+  \[
+    \expec[\xi_i]{\norm*{ \nabla F(x) - \nabla f_i(x; \xi_i) }^2}
+    \leq \sigma^2
+    \, .
+  \]
+  Then we have
+  \[
+    \expec{\frac{1}{T} \sum_{t=0}^{T-1} \norm{\nabla F(x_t)}^2}
+    \leq
+    \frac{2\left(F(x_0) - F^\ast\right)}{\gamma T} + \frac{L \gamma \sigma^2}{n}
+    \, .
+  \]
+\end{lemma}
+
+
+\begin{proof}
+  Interchanging derivatives and expectation we get
+  \[
+    \expec{g_{t,i} \,|\, x_t} = \expec{\nabla f_i(x_t; \xi_i) \,|\, x_t} = \nabla \expec{f_i(x_t; \xi_i) \,|\, x_t}
+  \]
+  hence
+  \[
+    \expec{g_t \,|\, x_t}
+    =
+    \nabla \frac{1}{n} \sum_{i=1}^n \expec{f_i(x_t; \xi_i) \,|\, x_t}
+    =
+    \nabla F(x_t)
+    \, .
+  \]
+  For all $i$ and $j$ distinct the choices of the parameters $\xi_i$ and $\xi_j$ are independent, hence the vectors $g_{t,i}$ and $g_{t,j}$ are independent conditioned on $x_t$, so we have
+  \begin{align*}
+    \expec{\inp*{g_{t,i} - \nabla F(x_t)}{g_{t,j} - \nabla F(x_t)} \,\big|\, x_t}
+     & =
+    \inp*{\expec{g_{t,i} \,|\, x_t} - \nabla F(x_t)}{\expec{g_{t,j} \,|\, x_t} - \nabla F(x_t)}
+    \\
+     & =
+    \inp{0}{0}
+    =
+    0 \, .
+  \end{align*}
+  Using this result to get rid of the cross terms we obtain
+  \begin{align*}
+    \expec{\norm{g_t - \nabla F(x_t)}^2 \,|\, x_t}
+     & =
+    \expec{\norm*{\frac{1}{n} \sum_{i=1}^n (g_{t,i} - \nabla F(x_t))}^2 \,\Big|\, x_t}
+    \\
+     & =
+    \frac{1}{n^2} \sum_{i=1}^n \expec{\norm{g_{t,i} - \nabla F(x_t))}^2 \,|\, x_t}
+    \leq
+    \frac{\sigma^2}{n}
+  \end{align*}
+  where we used the variance bound for the last inequality. This allows us to derive a bound on the expected squared norm of the gradient $g_t$:
+  \begin{align*}
+    \expec{\norm{g_t}_2^2  \,\big|\, x_t}
+     & =
+    \expec{\norm{g_t - \nabla F(x_t) + \nabla F(x_t)}_2^2  \,\big|\, x_t}
+    \\
+     & =
+    \expec{\norm{g_t\ - \nabla F(x_t)}_2^2  \,\big|\, x_t} + \norm{\nabla F(x_t)}_2^2 + 2 \expec{ \inp*{g_t - \nabla F(x_t)}{\nabla F(x_t)} \,\big|\, x_t}
+    \\
+     & \leq
+    \sigma^2 / n + \norm{\nabla F(x_t)}_2^2
+    \, ,
+  \end{align*}
+  where we got rid of the term with the inner product by moving the conditional expectation inside the left operand of the inner product and using the identity $\expec{g_t \,|\, x_t} = \nabla F(x_t)$.
+
+  From the smoothness condition we get
+  \[
+    F(x_{t+1}) \leq F(x_t) - \gamma \nabla F(x_t)^\top g_t + \frac{L}{2} \gamma^2 \norm{g_t}_2^2
+    \, ,
+  \]
+  and then taking the conditional expectation we obtain thanks to the the computations at the beginning of the proof
+  \begin{align*}
+    \expec{F(x_{t+1})  \,|\, x_t}
+     & \leq
+    F(x_t) - \gamma \nabla F(x_t)^\top \expec{g_t \,|\, x_t} + \frac{L}{2} \gamma^2 \expec{\norm{g_t}_2^2 \,\big|\, x_t}
+    \\
+     & \leq
+    F(x_t) - \gamma \norm{\nabla F(x_t)}_2^2 + \frac{L}{2} \gamma^2  (\sigma^2/n + \norm{\nabla F(x_t)}_2^2)
+    \\
+     & =
+    F(x_t) - (\gamma - \frac{L}{2} \gamma^2) \norm{\nabla F(x_t)}_2^2 + \frac{L}{2} \gamma^2  \sigma^2/n
+    \\
+     & \leq
+    F(x_t) - \frac{\gamma}{2} \norm{\nabla F(x_t)}_2^2 + \frac{L}{2} \gamma^2  \sigma^2/n
+    \, .
+  \end{align*}
+  where for the last inequality we used the assumption $\gamma \leq 1/L$ to make the bound $\gamma - \gamma^2 L/2 \geq \gamma - \gamma/2 = \gamma/2$.
+  Rearranging the terms we get
+  \[
+    \norm{\nabla F(x_t)}_2^2
+    \leq
+    \frac{2}{\gamma} \Bigl(F(x_t) - \expec{F(x_{t+1}) \,|\, x_t}  + \gamma^2 \sigma^2 L/(2n) \Bigr)
+    \, .
+  \]
+  Taking the (unconditional) expectation and summing over $t$ on both sides yields
+  \begin{align*}
+    \expec{ \sum_{t=0}^{T-1} \norm{\nabla F(x_t)}_2^2 }
+     & \leq
+    \frac{2}{\gamma} \left(\sum_{t=0}^{T-1} \expec{F(x_t)} - \sum_{t=0}^{T-1} \expec{F(x_{t+1})} + T \gamma^2 \sigma^2 L/(2n) \right)
+    \\
+     & =
+    \frac{2}{\gamma}  \left(F(x_0) - \expec{F(x_{T})}\right) + L T \gamma \sigma^2/n
+    \\
+     & \leq
+    \frac{2}{\gamma}  \left(F(x_0) - F^\ast\right) + L T \gamma \sigma^2/n
+  \end{align*}
+  from which the result follows immediately.
+\end{proof}
+
+
+Following exactly the same approach as in lemma~\ref{lem:sgd-federated-stepsize} and~\ref{lem:sgd-convergence-rate} and replacing $\sigma^2$ by $\sigma^2/n$ we obtain the two results below on the step size and the convergence rate for federated SGD.
+
+
+\begin{lemma}\label{lem:sgd-federated-stepsize}
+  The step size that minimizes the upper bound in lemma~\ref{lem:sgd-federated-convergence}
+  is
+  \[
+    \gamma = \sqrt{\frac{2n(F(x_0) - F^\ast)}{T L \sigma^2}}
+    \, .
+  \]
+  For this value of $\gamma$ the upper bound becomes
+  \[
+    2 \sqrt{\frac{2L \sigma^2 (F(x_0) - F^\ast)}{nT}}
+    \, .
+  \]
+\end{lemma}
+
+
+\begin{lemma}[Convergence rate of federated SGD]\label{lem:sgd-federated-convergence-rate}
+  Let $\varepsilon > 0$. Suppose the number of steps $T$ is at least
+  \[
+    \frac{8 L \sigma^2 (F(x_0) - F^\ast)}{n \varepsilon^2}
+  \]
+  and use the step size $\gamma$ from lemma~\ref{lem:sgd-stepsize}.
+  Then we have the following bound on the SGD:
+  \[
+    \expec{ \frac{1}{T} \sum_{t=0}^{T-1} \norm{\nabla F(x_t)}_2^2 }
+    \leq
+    \varepsilon
+    \, ,
+  \]
+  i.e. the convergence rate of the SGD is $T = O(\varepsilon^{-2})$. With respect to the number $n$ of clients we have $T = O(1/n)$, i.e. linear scalability: if we double the number of clients then we reduce by half the number of steps needed to achieve the same error bound.
+\end{lemma}
+
+
+\subsection{Federated SGD with error feedback and gradient compression}
+
+
+\todo{
+  Next, we consider how gradient compression is applied to the distributed sgd. Let's look at Praneeth's paper \footnote{\url{https://arxiv.org/pdf/1901.09847v2.pdf}} and consider Algorithm 2 and use the Assumption A. We are still considering the non-convex and smooth distributed objective. Once you finish the convergence analysis, check
+  \begin{itemize}
+    \item if the new algorithm still enjoy the linear scaling?
+    \item now we have a new hyper-parameter $\delta$, how does it influence the convergence?
+    \item (sanity check): when $\delta=1$, there is no compression at all. The convergence should recover the previous analysis. In fact, we can even compare the proofs line by line.
+    \item (explorative): two compressors having same level of compression may have different $\delta$. For example, let us consider compressor Random-K and Top-K. The Random-K compresses a vector by randomly keeping $K$ entries of a vector and set others to 0. The Top-K compresses a vector by keeping the $K$ largest entries (in absolute value) and set others to 0. So both methods have same compression ratio but their $\delta$ are different (check by yourself). Therefore, we would like to find the compressor that have high compression ratio for a fixed $\delta$ (therefore fixed convergence rate). \footnote{PowerSGD \url{https://proceedings.neurips.cc/paper/2019/hash/d9fbed9da256e344c1fa46bb46c34c5f-Abstract.html} is a very efficient one. }
+  \end{itemize}
+
+
+  Once you have this proof. You can try to remove the error-feedback from algorithm and analyze it. Not required though.
+
+  If you would like to explore more, you can read our paper on Byzantine-robustness and think about what are the extra hyperparameters and assumptions and how are they reflected in the final theorem.
+}
+
+To save communication costs the clients send compressed gradient updates to the server. A \emph{$\delta$-approximate compressor} is function $\mathcal C : \mathbb R^d \to \mathbb R^d$ satisfying $\norm{\xx - \mathcal C(\xx)}^2 \leq (1-\delta) \norm{\xx}^2$, where $\delta$ is a constant in the interval $(0, 1]$. We also enhance the algorithm with an error feedback mechanism.
+
+
+\begin{algorithm}
+  \caption{Federated SGD with gradient compression and error feedback}
+  \begin{algorithmic}
+    \For{$i \in [n]$ (client $i$)}
+    \State $\gg_{t,i} \gets \nabla f_i(\xx_t; \xi_i)$
+    \State $\pp_{t,i} \gets \gamma \gg_{t,i} + \ee_{t,i}$
+    \State $\ee_{t+1,i} \gets \pp_{t,i} - \mathcal C(\pp_{t,i})$
+    \State Client $i$ sends $\Delta_{t,i} \gets \mathcal C(\pp_{t,i})$ to the server.
+    \EndFor
+    \State The server aggregates $\Delta_t \gets \frac{1}{n} \sum_{i=1}^n \Delta_{t,i}$.
+    \State $\xx_{t+1} \gets \xx_t - \Delta_t$
+  \end{algorithmic}
+\end{algorithm}
+
+
+
+\begin{lemma}\label{lem:efsgd-convergence}
+  If the objective function $F$ has $L$-lipschitz gradient and if $\expec{\norm{\nabla F(\xx) - \nabla f_i(\xx; \xi)}^2} \leq \sigma^2$ for every $i$, $\xx$ and $\xi$, and if the step-size $\gamma$ is at most $\delta / (\sqrt{24} L)$, then
+  \[
+    \expec{\frac{1}{T} \sum_{t=0}^{t-1} \norm{\nabla F(\xx_t)}^2}
+    \leq
+    \frac{8(F(\xx_0) - F^\ast)}{\gamma T} + \frac{\sqrt{24} L \gamma \sigma^2 (1-\delta)}{\delta} + \frac{4 L \gamma \sigma^2}{n}
+  \]
+\end{lemma}
+
+\begin{proof}
+  For simplicity we use shorthand notations for the averages $g_t := \frac{1}{n} \sum_{i=1}^n g_{t,i}$ and $e_t := \frac{1}{n} \sum_{i=1}^n e_{t,i}$.
+
+  Let us study the sequence $\tilde x_t := x_t - e_t$. Observe that
+  \begin{align*}
+    \tilde x_{t+1}
+     & =
+    x_{t+1} - e_{t+1}
+    =
+    x_t - \frac{1}{n} \sum_{i=1}^n \mathcal C(p_{t,i}) - \frac{1}{n} \sum_{i=1}^n (p_{t,i} - \mathcal C(p_{t,i}))
+    =
+    x_t - \frac{1}{n} \sum_{i=1}^n p_{t,i}
+    \\
+     & =
+    x_t - \gamma  \frac{1}{n} \sum_{i=1}^n g_{t,i} - \frac{1}{n} \sum_{i=1}^n e_{t,i}
+    =
+    x_t - \gamma g_t - e_t
+    =
+    \tilde x_t - \gamma g_t
+  \end{align*}
+  hence $\tilde x_{t+1} - \tilde x_t = -\gamma g_t$. Exactly as in the federated SGD without error feedback we have $\expec{g_t \,|\, x_t} = \nabla F(x_t)$ and $\expec{\norm{g_t}^2 \,|\, x_t} \leq \norm{\nabla F(x_t)}^2 + \sigma^2/n$.
+
+  Later in the proof we will need an upper bound on the average distance (over $t$) between $\nabla F(\tilde x_t)$ and $\nabla F(x_t)$, so let us compute it. For every $t$ we have
+  \begin{align*}
+    \norm*{\nabla F(\tilde x_t) - \nabla F(x_t)}^2
+    \leq
+    L^2 \norm{\tilde x_t - x_t}^2
+    =
+    L^2 \norm{e_t}^2
+  \end{align*}
+  since the gradient of $F$ is $L$-lipschitz. Then
+  \begin{align*}
+    \norm{e_t}
+     & =
+    \norm*{ \sum_{i=1}^n \frac{e_{t,i}}{n} }
+    \leq
+    \sum_{i=1}^n \norm*{ \frac{e_{t,i}}{n} }
+    =
+    \inp*{
+      \begin{pmatrix} 1/n \\ \vdots \\ 1/n \end{pmatrix}
+    }{
+      \begin{pmatrix} \norm{e_{t,1}} \\ \vdots \\ \norm{e_{t,n}} \end{pmatrix}
+    }
+    \leq
+    \frac{1}{\sqrt n} \sqrt{\sum_{i=1}^n \norm{e_{t,i}}^2}
+  \end{align*}
+  where the first inequality comes from the triangle inequality and the second one is Cauchy--Schwarz. Combining these two results gives
+  \[
+    \norm{\nabla F(\tilde x_t) - \nabla F(x_t)}^2
+    \leq
+    \frac{L^2}{n} \sum_{i=1}^n \norm{e_{t,i}}^2
+    \, .
+  \]
+  Let us upper bound the squared norm of each $e_{t,i}$ for all $i$. We have
+  \begin{align*}
+    \norm{e_{t,i}}^2
+     & =
+    \norm{p_{t-1,i} - \mathcal C(p_{t-1,i})}^2
+    \leq
+    (1-\delta) \norm{p_{t-1,i}}^2
+    \\
+     & \leq
+    (1-\delta) (1 + 2/\delta) \gamma^2 \norm{g_{t-1,i}}^2 + (1-\delta)  (1 + \delta/2) \norm{e_{t-1,i}}^2
+  \end{align*}
+  where for the last inequality we applied proposition~\ref{prop:ineq-young-norm} with the constant $\alpha := \delta/2$. Since $(1-\delta)(1+2/\delta) \leq (1-\delta) (1/\delta+2/\delta) = 3(1-\delta)/\delta$ (because $0 < \delta \leq 1$) and $(1-\delta)(1+\delta/2) = 1 - \delta/2 - \delta^2/2 < 1 - \delta/2$ we obtain the simplified upper bound
+  \[
+    \norm{e_{t,i}}^2
+    \leq
+    \frac{3 \gamma^2 (1-\delta)}{\delta} \norm{g_{t-1,i}}^2 + (1-\delta/2) \norm{e_{t-1,i}}^2
+    \, .
+  \]
+  Summing over $t$ yields
+  \begin{align*}
+    \sum_{t=0}^{T-1} \norm{e_{t,i}}^2
+     & =
+    \sum_{t=1}^{T-1} \norm{e_{t,i}}^2
+    \leq
+    \frac{3 \gamma^2 (1-\delta)}{\delta} \sum_{t=1}^{T-1}  \norm{g_{t-1,i}}^2 + (1-\delta/2) \sum_{t=1}^{T-1}  \norm{e_{t-1,i}}^2
+    \\
+     & =
+    \frac{3 \gamma^2 (1-\delta)}{\delta} \sum_{t=0}^{T-2}  \norm{g_{t,i}}^2 + (1-\delta/2) \sum_{t=0}^{T-2}  \norm{e_{t,i}}^2
+    \\
+     & \leq
+    \frac{3 \gamma^2 (1-\delta)}{\delta} \sum_{t=0}^{T-1}  \norm{g_{t,i}}^2 + (1-\delta/2) \sum_{t=0}^{T-1}  \norm{e_{t,i}}^2
+  \end{align*}
+  where the first equality is because $e_{0,i} = 0$ in each client $i$, the second equality is a change of indices and the last inequality is an upper bound by taking an additional term with index $t = T-1$ in the sums. Putting the sum with the norm of the $e_{t,i}$ on the left hand side we get
+  \[
+    \sum_{t=0}^{T-1} \norm{e_{t,i}}^2
+    \leq
+    \frac{6 \gamma^2 (1-\delta)}{\delta^2} \sum_{t=0}^{T-1}  \norm{g_{t,i}}^2
+  \]
+  Combining this with the previous upper bound on the distance between $\nabla F(\tilde x_t)$ and $\nabla F(x_t)$ we obtain the following upper bound:
+  \[
+    \sum_{t=0}^{T-1} \norm{\nabla F(\tilde x_t) - \nabla F(x_t)}^2
+    \leq
+    \frac{6 \gamma^2 L^2 (1-\delta)}{n \delta^2} \sum_{t=0}^{T-1} \sum_{i=1}^n \norm{g_{t,i}}^2
+    \, .
+  \]
+  Moreover for every $t$ we have
+  \begin{align*}
+    \sum_{i=1}^n \expec{\norm{g_{t,i}}^2 \,|\, x_t}
+     & =
+    \sum_{i=1}^n \expec{\norm{g_{t,i} - \nabla F(x_t) + \nabla F(x_t)}^2 \,|\, x_t}
+    \\
+     & =
+    \sum_{i=1}^n \expec{\norm{g_{t,i} - \nabla F(x_t)}^2 \,|\, x_t} + \norm{\nabla F(x_t)}^2 + \expec{\inp*{g_{t,i} - \nabla F(x_t)}{\nabla F(x_t)} \,|\, x_t}
+    \\
+     & \leq
+    n \sigma^2 + n \norm{\nabla F(x_t)}^2 + n \inp*{\expec{g_t  \,|\, x_t } - \nabla F(x_t)}{\nabla F(x_t)}
+    \\
+     & =
+    n \sigma^2 + n \norm{\nabla F(x_t)}^2
+  \end{align*}
+  hence we obtain (taking unconditional expectation) the following upper bound that we will use later on:
+  \[
+    \expec{\sum_{t=0}^{T-1} \norm{\nabla F(\tilde x_t) - \nabla F(x_t)}^2}
+    \leq
+    \frac{6 \gamma^2 L^2 (1-\delta)}{\delta^2} \left( T \sigma^2 + \sum_{t=0}^{T-1} \expec{ \norm{\nabla F(x_t)}^2 } \right)
+    \, .
+  \]
+  For every $t$, using the Lipschitz condition on $\nabla F$ we get
+  \begin{align*}
+    F(\tilde x_{t+1})
+     & \leq
+    F(\tilde x_t) + \inp*{\nabla F(\tilde x_t)}{\tilde x_{t+1} - \tilde x_t} + \frac{L}{2} \norm*{\tilde x_{t+1} - \tilde x_t}^2
+    \\
+     & =
+    F(\tilde x_t) + \inp*{\nabla F(\tilde x_t)}{-\gamma g_t} + \frac{L \gamma^2}{2} \norm{g_t}^2
+    \, .
+  \end{align*}
+  Taking conditional expectation on both sides yields
+  \begin{align*}
+    \expec{ F(\tilde x_{t+1}) \,|\, x_t}
+     & \leq
+    F(\tilde x_t) + \inp*{\nabla F(\tilde x_t)}{-\gamma \nabla F(x_t)} + \frac{L \gamma^2}{2} \expec{\norm{g_t}^2 \,|\, x_t}
+    \\
+     & \leq
+    F(\tilde x_t) + \inp*{\nabla F(\tilde x_t)}{-\gamma \nabla F(x_t)} + \frac{L \gamma^2}{2} \left( \norm*{\nabla F(x_t)}^2  + \sigma^2/n\right)
+    \, .
+  \end{align*}
+  Now we upper bound the middle term:
+  \begin{align*}
+    \inp*{\nabla F(\tilde x_t)}{-\gamma \nabla F(x_t)}
+     & =
+    \inp*{\nabla F(x_t)}{-\gamma \nabla F(x_t)} +   \inp*{\nabla F(\tilde x_t) - \nabla F(x_t)}{-\gamma \nabla F(x_t)}
+    \\
+     & \leq
+    -\gamma \norm*{\nabla F(x_t)}^2 + \gamma \norm*{\nabla F(\tilde x_t) - \nabla F(x_t)} \norm*{\nabla F(x_t)}
+    \\
+     & \leq
+    -\gamma \norm*{\nabla F(x_t)}^2 + \gamma \left( \frac{1}{2} \norm*{\nabla F(\tilde x_t) - \nabla F(x_t)}^2 + \frac{1}{2} \norm*{\nabla F(x_t)}^2 \right)
+    \\
+     & =
+    -\frac{\gamma}{2} \norm*{\nabla F(x_t)}^2 + \frac{\gamma}{2} \norm*{\nabla F(\tilde x_t) - \nabla F(x_t)}^2
+  \end{align*}
+  where for the first inequality we used the Cauchy--Schwarz inequality and for the second inequality we used Young's inequality. Combining with the previous computation we get
+  \begin{align*}
+    \expec{ F(\tilde x_{t+1}) \,|\, x_t} - F(\tilde x_t)
+     & \leq
+    -\frac{\gamma}{2} \norm*{\nabla F(x_t)}^2 + \frac{\gamma}{2} \norm*{\nabla F(\tilde x_t) - \nabla F(x_t)}^2 + \frac{L \gamma^2}{2} \left( \norm*{\nabla F(x_t)}^2  + \sigma^2/n\right)
+    \\
+     & =
+    \frac{L\gamma^2-\gamma}{2} \norm*{\nabla F(x_t)}^2 + \frac{\gamma}{2} \norm*{\nabla F(\tilde x_t) - \nabla F(x_t)}^2 + \frac{L \gamma^2 \sigma^2}{2n}
+  \end{align*}
+  Now we take the sum over $t$ on both sides
+  \begin{align*}
+    \sum_{t=0}^{T-1} \left( \expec{ F(\tilde x_{t+1}) \,|\, x_t} - F(\tilde x_t) \right)
+     & \leq
+    \frac{L\gamma^2-\gamma}{2} \sum_{t=0}^{T-1} \norm*{\nabla F(x_t)}^2 + \frac{\gamma}{2} \sum_{t=0}^{T-1} \norm*{\nabla F(\tilde x_t) - \nabla F(x_t)}^2 + \frac{T L \gamma^2 \sigma^2}{2n}
+  \end{align*}
+  Taking unconditional expectation on both sides we get
+  \begin{align*}
+    \sum_{t=0}^{T-1} \left(\expec{F(\tilde x_{t+1})} - \expec{F(\tilde x_t)\right)}
+     & \leq
+    \frac{L\gamma^2-\gamma}{2} \sum_{t=0}^{T-1} \expec{\norm*{\nabla F(x_t)}^2}
+    + \frac{\gamma}{2} \expec{ \sum_{t=0}^{T-1} \norm*{\nabla F(\tilde x_t) - \nabla F(x_t)}^2 }
+    + \frac{T L \gamma^2 \sigma^2}{2n}
+    \, .
+  \end{align*}
+  We notice that the left hand side is a telescoping sum. On the right hand side we use the upper bound we computed at the beginning for the middle term:
+  \begin{align*}
+    \expec{F(\tilde x_{T})} - F(x_0)
+     & \leq
+    \frac{L\gamma^2-\gamma}{2} \sum_{t=0}^{T-1} \expec{\norm*{\nabla F(x_t)}^2}
+    + \frac{3 \gamma^3 L^2 (1-\delta)}{\delta^2} \left( T \sigma^2 + \sum_{t=0}^{T-1} \expec{ \norm{\nabla F(x_t)}^2 } \right)
+    + \frac{T L \gamma^2 \sigma^2}{2n}
+  \end{align*}
+  and rearranging we obtain
+  \[
+    \left(-\frac{L\gamma^2-\gamma}{2} - \frac{3\gamma^3 L^2 (1-\delta)}{\delta^2}\right) \sum_{t=0}^{T-1} \expec{ \norm{\nabla F(x_t)}^2 }
+    \leq
+    (F(x_0) - F^\ast) + \frac{3 T L^2 \gamma^3 \sigma^2 (1-\delta)}{\delta^2} + \frac{TL \gamma^2 \sigma^2}{2n}
+  \]
+  since $\expec{F(\tilde x_T)} \geq F^\ast$. Let us simplify a bit the expressions on the left hand side. We have $\gamma \leq \delta / (\sqrt{24}L)$ so
+  \[
+    \frac{3\gamma^3 L^2 (1-\delta)}{\delta^2} \leq \frac{3\gamma (1-\delta)}{24} = \frac{\gamma (1-\delta)}{8} \leq \frac{\gamma}{8}
+  \]
+  and also $\gamma < 1/(2L)$ (as a looser bound) so
+  \[
+    \frac{L\gamma^2 - \gamma}{2} \leq \frac{\frac{1}{2} \gamma-\gamma}{2} = -\gamma / 4 \, .
+  \]
+  Combining these two gives
+  \[
+    -\frac{L\gamma^2-\gamma}{2} - \frac{3\gamma^3 L^2 (1-\delta)}{\delta^2} \geq -\frac{\gamma}{8} +\frac{\gamma}{4} = \frac{\gamma}{8}
+  \]
+  so we obtain
+  \[
+    \sum_{t=0}^{T-1} \expec{ \norm{\nabla F(x_t)}^2 }
+    \leq
+    \frac{8(F(x_0) - F^\ast)}{\gamma} + \frac{24 T L^2 \gamma^2 \sigma^2 (1-\delta)}{\delta^2} + \frac{4 TL \gamma \sigma^2}{n}
+  \]
+  and then the statement of the lemma by dividing by $T$ and using $\gamma \leq \delta/ (\sqrt{24} L)$.
+\end{proof}
+
+
+\begin{remark}
+  When there is no compression we have $\delta = 1$ so the upper bound in lemma~\ref{lem:efsgd-convergence} simplifies and becomes the same (up to some constants) as the bound we derived in lemma~\ref{lem:sgd-federated-convergence}, where we had no gradient compression and error feedback mechanism.
+\end{remark}
+
+
+Let us analyse the convergence rate implied by our bound from lemma~\ref{lem:efsgd-convergence}. The upper bound is of the form $G(\gamma) = A/\gamma + B \gamma$ with
+\[
+  A = \frac{8(F(\xx_0) - F^\ast)}{T}
+\]
+and
+\[
+  B = \frac{\sqrt{24} L \sigma^2 (1-\delta)}{\delta} + \frac{4 L \sigma^2}{n}
+\]
+so it is minimized for the step-size $\gamma^\ast = \sqrt{A/B}$ for which it becomes
+\[
+  G(\gamma^\ast)
+  =
+  2\sqrt{AB}
+  =
+  2 \sqrt{\frac{8(F(\xx_0) - F^\ast)}{T} \left(\frac{\sqrt{24} L \sigma^2 (1-\delta)}{\delta} + \frac{4 L \sigma^2}{n}\right)}
+\]
+
+\begin{lemma}[Convergence rate of the EF-SGD]\label{lem:efsgd-convergence-rate}
+  To have
+  \[
+    \expec{\frac{1}{T} \sum_{t=0}^{T-1} \norm{\nabla F(\xx_t)}^2} \leq \varepsilon
+  \]
+  we need
+  \[
+    T \geq \frac{32 \sigma^2 L (F(\xx_0) - F^\ast)}{\varepsilon^2} \left(\frac{4}{n} + \sqrt{24} \left(\frac{1}{\delta} - 1\right)\right)
+  \]
+  so $T = O(\varepsilon^2)$. If $\delta = 1$ (no compression) we recover linear scalability. The compression parameter $\delta$ slows down the convergence linearly, i.e. $T = O(1/\delta)$.
+\end{lemma}
+
+
+\section{Auxiliary tools}
+
+
+\begin{proposition}\label{prop:ineq-young-norm}
+  Let $\uu$ and $\vv$ be vectors in an inner product space and let $\alpha > 0$. Then
+  \[
+    \norm{\uu + \vv}^2 \leq (1 + \alpha) \norm{\uu}^2 + (1 + 1/\alpha) \norm{\vv}^2 \, .
+  \]
+\end{proposition}
+
+\begin{proof}
+  Applying the Cauchy--Schwarz inequality and then the Young inequality we get
+  \[
+    \inp{\uu}{\vv}
+    =
+    \inp*{\sqrt \alpha \uu }{\vv / \sqrt \alpha}
+    \leq
+    \norm*{\sqrt \alpha \uu} \norm*{\vv / \sqrt \alpha}
+    \leq
+    \frac{1}{2} \norm*{\sqrt \alpha \uu}^2 + \frac{1}{2} \norm*{\vv / \sqrt \alpha}^2
+    =
+    \frac{\alpha}{2} \norm{\uu} + \frac{1}{2 \alpha} \norm{\vv}
+  \]
+  and then expanding the inner product we get
+  \begin{align*}
+    \norm{\uu+\vv}^2
+     & =
+    \norm{\uu}^2 + \norm{\vv}^2 + 2 \inp{\uu}{\vv}
+    \leq
+    \norm{\uu}^2 + \norm{\vv}^2 + \alpha \norm{\uu} + \frac{1}{\alpha} \norm{\vv}
+    \\
+     & =
+    (1 + \alpha) \norm{\uu}^2 + (1 + 1/\alpha) \norm{\vv}^2
+    \, .
+  \end{align*}
+\end{proof}
+
+\section{Byzantine-robustness}
+\subsection{Assumptions and technical lemmas}
+\begin{assumption}[Honest-majority]\label{a:delta} There is an honest-majority among workers, i.e. $\delta<\nicefrac{1}{2}$.
+\end{assumption}
+
+\begin{assumption}[$L$-smooth]\label{a:smooth}
+  For all $i\in\gset$, $f_i(\xx):\R^d\rightarrow \R$ is differentiable and there exists a constant $L>0$ such that for each $\xx, \yy\in\R^d$, $\norm{\nabla f_i(\xx) - \nabla f_i(\yy)}_2 \le L \norm{\xx - \yy}_2$.
+\end{assumption}
+\begin{assumption}[Bounded noise and heterogeneity]\label{a:nh}
+  For all $\xx\in\R^d$ we have
+  \begin{align*}
+    \tfrac{1}{|\gset|}\tsum_{i\in\gset}\E_{\xi\in\cD_i} \norm{\nabla F_i(\xx; \xi_i) - \nabla f_i(\xx)}_2^2 \le \sigma^2, \quad
+    \tfrac{1}{|\gset|}\tsum_{i\in\gset}\norm{\nabla f_i(\xx) - \nabla f(\xx)}_2^2 \le \zeta^2.
+  \end{align*}
+
+  \comment{For lemma~\ref{lemma:mi} we will need the heterogeneity bound to hold for all good $i$, i.e. $\forall i \in \gset : \norm{\nabla f_i(\xx) - \nabla f(\xx)}_2^2 \le \zeta^2$}
+\end{assumption}
+\begin{definition}[$\rho$-approximate compressor % \citep{karimireddy2019error}
+  ]
+  \label{def:compressor}
+  A random operator $\cC:\R^d\rightarrow\R^d$ that satisfies for a parameter $\rho>0$:
+  \begin{equation}\label{eq:rho}
+    \E_{\cC}\norm{\xx - \cC(\xx)}_2^2\le(1-\rho)\norm{\xx}_2^2,\qquad \forall~\xx\in\R^d.
+  \end{equation}
+\end{definition}
+
+\begin{lemma}[Common equalities and inequalities]
+  We use the following equalities and inequalities
+  \begin{itemize}[leftmargin=20pt]
+    \item The cosine theorem: $\forall~\xx,\yy\in\R^d$
+          \begin{equation} \label{eq:cosine}
+            \langle \xx, \yy \rangle
+            = - \frac{1}{2} \norm{\xx - \yy}^2_2 + \frac{1}{2}\norm{\xx}_2^2 + \frac{1}{2}\norm{\yy}_2^2
+          \end{equation}
+    \item Young's inequality: For $\epsilon>0$ and $\xx,\yy\in\R^d$
+          \begin{equation}\label{eq:young}
+            \norm{\xx + \yy}^2_2 \le (1+\epsilon) \norm{\xx}^2_2
+            + (1+\epsilon^{-1})\norm{\yy}_2^2
+          \end{equation}
+    \item If $f$ is convex, then for $\alpha\in[0, 1]$ and $\xx, \yy\in\R^d$
+          \begin{equation}
+            \label{eq:convex}
+            f(\alpha \xx + (1-\alpha) \yy) \le \alpha f(\xx) + (1-\alpha) f(\yy)
+          \end{equation}
+    \item Cauchy-Schwarz inequality
+          \begin{equation}\label{eq:cs}
+            \langle \xx, \yy \rangle \le \norm{\xx}_2 \norm{\yy}_2
+          \end{equation}
+    \item Let $\{\xx_i: i\in[m]\}$ be independent random variables
+          and $\expect {\xx_i}=\0$ and $\expect\norm{\xx_i}^2=\sigma^2$ then
+          \begin{equation}\label{eq:random}
+            \E \norm{\tfrac{1}{m}\tsum_{i=1}^m \xx_i}_2^2
+            = \frac{\sigma^2}{m} %MJ: it can be \le, no?
+          \end{equation}
+  \end{itemize}
+\end{lemma}
+
+
+\subsection{Analysis}
+
+The algorithm at time $t$ can be simplified as follows
+\begin{align}
+  \mm_i^{(t+1)} & = (1-\alpha) \mm_i^{(t)} + \alpha \gg_i^{(t)}                 \label{eq:m}     \\
+  \vv_i^{(t+1)} & = \cC(\eta_t\mm_i^{(t+1)} + \rr_i^{(t)})                          \label{eq:v} \\
+  \rr_i^{(t+1)} & = \eta_t\mm_i^{(t+1)} + \rr_i^{(t)} - \vv_i^{(t+1)}               \label{eq:r} \\
+  \cc_i^{(t+1)} & = \vv_i^{(t+1)}\min\left(1,\tau/\norm{\vv_i^{(t+1)}}\right) \label{eq:c}       \\
+  \xx^{(t+1)}   & =\xx^{(t)}- \tfrac{1}{n}\tsum_{i\in[n]}\cc_i^{(t+1)} \label{eq:x}
+\end{align}
+We additionally introduce $\bar{\cc}^{(t)}:=\tfrac{1}{|\gset|}\tsum_{i\in\gset}\cc_i^{(t)}$ and $\bar{\rr}^{(t)}:=\tfrac{1}{|\gset|}\tsum_{i\in\gset}\rr_i^{(t)}$ as the average iterate of the clipped values and the residuals among regular workers respectively.
+
+% \paragraph{Virtual iterate.} Since compression operator can be biased, it is easier to analyze an unbiased virtual iterate which includes the residuals on good workers
+% \begin{equation}\label{eq:xt}
+%   \tilde{\xx}^{(t)}:= \xx^{(t)} - \bar{\rr}^{(t)}.
+% \end{equation}
+% The recursion on this virtual iterate can be summarized in the following lemma.
+% \begin{lemma} The virtual iterate $\xx^{(t)}$ satisfies
+%   \begin{equation}\label{eq:xt:r}
+%     \tilde{\xx}^{(t+1)} = \tilde{\xx}^{(t)} -\eta_t\bar{\mm}^{(t+1)} - \eta_t \Delta^{(t+1)}.
+%   \end{equation}
+%   where $\Delta^{(t+1)}:=\tfrac{1}{\eta_t}\left(\tfrac{1}{n}\tsum_{i=1}^n \cc_i^{(t+1)} - \bar{\vv}^{(t+1)}\right)$.
+% \end{lemma}
+% Note that $\Delta^{(t+1)}$ captures the difference between using all clipped values and the ideal case of using only good clipped values. It means $\Delta^{(t+1)}=0$ when $\delta=0$.
+% \begin{proof}
+%   Use the definition of $\tilde{\xx}^{(t+1)}$ and $\xx^{(t+1)}$
+%   \begin{align*}
+%     \tilde{\xx}^{(t+1)} \stackrel{\eqref{eq:xt}}{=} \xx^{(t+1)} - \bar{\rr}^{(t+1)}
+%     \stackrel{\eqref{eq:x}}{=} \xx^{(t)} - \tfrac{1}{n}\tsum_{i=1}^n \cc_i^{(t+1)} - \bar{\rr}^{(t+1)}.
+%   \end{align*}
+%   We can use \eqref{eq:xt} again on $\xx^{(t)}$
+%   \begin{align*}
+%     \tilde{\xx}^{(t+1)} = \tilde{\xx}^{(t)} + \bar{\rr}^{(t)} - \tfrac{1}{n}\tsum_{i=1}^n \cc_i^{(t+1)} - \bar{\rr}^{(t+1)}.
+%   \end{align*}
+%   Then average \eqref{eq:r} over $i\in\gset$ gives $\bar{\rr}^{(t)}-\bar{\rr}^{(t+1)}=\bar{\vv}^{(t+1)}-\eta_t\bar{\mm}^{(t+1)}$
+%   \begin{align*}
+%     \tilde{\xx}^{(t+1)} = \tilde{\xx}^{(t)} -\eta_t\bar{\mm}^{(t+1)} - \left(\tfrac{1}{n}\tsum_{i=1}^n \cc_i^{(t+1)} - \bar{\vv}^{(t+1)}\right).
+%   \end{align*}
+% \end{proof}
+
+% \begin{lemma}[Sufficient decrease]
+%   \label{lemma:sd}
+%   Under \Cref{a:smooth} and $\eta\le\frac{1}{2L}$, we have
+%   \begin{equation}\label{eq:sd:t}
+%     \begin{split}
+%       \E f(\tilde{\xx}^{(t+1)}) \le & f(\tilde{\xx}^{(t)})  -\tfrac{\eta}{2} \norm{\nabla f(\tilde{\xx}^{(t)})}_2^2 - \tfrac{\eta}{4}\E\norm{\bar{\mm}^{(t+1)} + \Delta^{(t+1)}}_2^2 \\
+%       & + \eta \E\norm{\bar{\mm}^{(t+1)} - \nabla f(\tilde{\xx}^{(t)})}_2^2 + \eta \E\norm{\Delta^{(t+1)}}_2^2.
+%     \end{split}
+%   \end{equation}
+%   Average the inequality over time $t$ gives
+%   \begin{equation}\label{eq:sd:T}
+%     \begin{split}
+%       & \tfrac{1}{T}\tsum_{t=0}^{T-1} \norm{\nabla f(\tilde{\xx}^{(t)})}_2^2 + \tfrac{1}{2T}\tsum_{t=0}^{T-1} \E \norm{\bar{\mm}^{(t+1)} + \Delta^{(t+1)} }_2^2 \\
+%       \le & \tfrac{2(f(\tilde{\xx}^{0}) - f(\tilde{\xx}^{(T)}) )}{\eta T}
+%       + \tfrac{2}{T}\tsum_{t=0}^{T-1} \E \norm{\bar{\mm}^{t+1} - \nabla f(\tilde{\xx}^{(t)})}_2^2
+%       +\tfrac{2}{T}\tsum_{t=0}^{T-1} \norm{\Delta^{t+1}}_2^2.
+%     \end{split}
+%   \end{equation}
+% \end{lemma}
+
+% \begin{proof}
+%   Expand the global objective $f(\tilde{\xx}^{(t+1)})$ using \eqref{eq:xt:r} and $L$-smoothness \Cref{a:smooth}
+%   \begin{equation}\label{eq:sd:1}
+%     \E f(\tilde{\xx}^{(t+1)}) \le f(\tilde{\xx}^{(t)}) - \eta \E \langle \nabla f(\tilde{\xx}^{(t)}), \bar{\mm}^{(t+1)} + \Delta^{(t+1)} \rangle + \tfrac{L\eta^2}{2} \E \norm{\bar{\mm}^{(t+1)} + \Delta^{(t+1)}}_2^2.
+%   \end{equation}
+%   The middle term can be expanded with \eqref{eq:cosine}
+%   \begin{align*}
+%       & - \eta\E \langle \nabla f(\tilde{\xx}^{(t)}), \bar{\mm}^{(t+1)} + \Delta^{(t+1)}\rangle                                    \\
+%     = & -\tfrac{\eta}{2} \norm{\nabla f(\tilde{\xx}^{(t)})}_2^2 - \tfrac{\eta}{2} \E\norm{\bar{\mm}^{(t+1)} + \Delta^{(t+1)} }_2^2
+%     + \tfrac{\eta}{2} \E\norm{\bar{\mm}^{(t+1)} + \Delta^{(t+1)}  - \nabla f(\tilde{\xx}^{(t)})}_2^2.
+%   \end{align*}
+%   Then \eqref{eq:sd:1} is equivalent to
+%   \begin{align*}
+%     \E f(\tilde{\xx}^{(t+1)})
+%     \!\le\! & f(\tilde{\xx}^{(t)}) \!-\!\tfrac{\eta}{2} \norm{\nabla f(\tilde{\xx}^{(t)})}_2^2 \!-\! (\tfrac{\eta}{2} - \tfrac{L\eta^2}{2})\E\norm{\bar{\mm}^{(t+1)} + \Delta^{(t+1)}}_2^2
+%     \\
+%             & + \tfrac{\eta}{2} \E\norm{\bar{\mm}^{(t+1)} + \Delta^{(t+1)} - \nabla f(\tilde{\xx}^{(t)})}_2^2.
+%   \end{align*}
+%   By taking $\eta\le\tfrac{1}{2L}$, we have $- (\tfrac{\eta}{2} - \tfrac{L\eta^2}{2}) \le -\frac{\eta}{4}$
+%   \begin{align*}
+%     \E f(\tilde{\xx}^{(t+1)}) \le & f(\tilde{\xx}^{(t)})  -\tfrac{\eta}{2} \norm{\nabla f(\tilde{\xx}^{(t)})}_2^2 - \tfrac{\eta}{4}\E\norm{\bar{\mm}^{(t+1)} + \Delta^{(t+1)}}_2^2 \\
+%                                   & + \tfrac{\eta}{2} \E\norm{\bar{\mm}^{(t+1)} + \Delta^{(t+1)} - \nabla f(\tilde{\xx}^{(t)})}_2^2                                                \\
+%     \le                           & f(\tilde{\xx}^{(t)})  -\tfrac{\eta}{2} \norm{\nabla f(\tilde{\xx}^{(t)})}_2^2 - \tfrac{\eta}{4}\E\norm{\bar{\mm}^{(t+1)} + \Delta^{(t+1)}}_2^2 \\
+%                                   & + \eta \E\norm{\bar{\mm}^{(t+1)} - \nabla f(\tilde{\xx}^{(t)})}_2^2 + \eta \E\norm{\Delta^{(t+1)}}_2^2.
+%   \end{align*}
+%   Average over $t=0$ to $T-1$ gives
+%   \begin{align*}
+%         & \tfrac{1}{T}\tsum_{t=0}^{T-1} \norm{\nabla f(\tilde{\xx}^{(t)})}_2^2 + \tfrac{1}{2T}\tsum_{t=0}^{T-1} \E \norm{\bar{\mm}^{(t+1)} + \Delta^{(t+1)} }_2^2 \\
+%     \le & \tfrac{2(f(\tilde{\xx}^{0}) - f(\tilde{\xx}^{(T)}) )}{\eta T}
+%     + \tfrac{2}{T}\tsum_{t=0}^{T-1} \E \norm{\bar{\mm}^{t+1} - \nabla f(\tilde{\xx}^{(t)})}_2^2
+%     +\tfrac{2}{T}\tsum_{t=0}^{T-1} \norm{\Delta^{t+1}}_2^2.
+%   \end{align*}
+% \end{proof}
+
+
+\begin{lemma}[Sufficient decrease]
+  \label{lemma:sd}
+  Under \Cref{a:smooth} and $\eta\le\frac{1}{2L}$, we have
+  \begin{equation}\label{eq:sd:T}
+    \begin{split}
+      & \tfrac{1}{T}\tsum_{t=0}^{T-1} \norm{\nabla f(\xx^{(t)})}_2^2 + \tfrac{1}{2T}\tsum_{t=0}^{T-1} \E \norm{\tfrac{1}{n} \tsum_{i=1}^n \cc_i^{(t+1)} }_2^2 \\
+      \le & \tfrac{2(f(\xx^{0}) - f^\star)}{\eta T}
+      +\tfrac{2}{T}\tsum_{t=0}^{T-1} \norm{\tfrac{1}{n\eta} \tsum_{i=1}^n \cc_i^{(t+1)}  - \nabla f(\xx^{(t)}) }_2^2.
+    \end{split}
+  \end{equation}
+\end{lemma}
+
+\begin{proof}
+  Expand the global objective $f(\xx^{(t+1)})$ using  $L$-smoothness \Cref{a:smooth}
+  \begin{equation} \label{eq:sd:1}
+    \E f(\xx^{(t+1)}) \le f(\xx^{(t)}) - \E \langle \nabla f(\xx^{(t)}), \tfrac{1}{n} \tsum_{i=1}^n \cc_i^{(t+1)} \rangle + \tfrac{L}{2} \E \norm{\tfrac{1}{n} \tsum_{i=1}^n \cc_i^{(t+1)}}_2^2.
+  \end{equation}
+  The middle term can be expanded with \eqref{eq:cosine}
+  \begin{align*}
+    - \E \langle \nabla f(\xx^{(t)}), \tfrac{1}{n} \tsum_{i=1}^n \cc_i^{(t+1)} \rangle
+    = & -\tfrac{\eta}{2} \norm{\nabla f(\xx^{(t)})}_2^2 - \tfrac{\eta}{2} \E\norm{ \tfrac{1}{n\eta} \tsum_{i=1}^n \cc_i^{(t+1)} }_2^2 \\
+      & + \tfrac{\eta}{2} \E\norm{ \tfrac{1}{n\eta} \tsum_{i=1}^n \cc_i^{(t+1)}  - \nabla f(\xx^{(t)})}_2^2.
+  \end{align*}
+  Then \eqref{eq:sd:1} is equivalent to
+  \begin{align*}
+    \E f(\xx^{(t+1)})
+    \!\le\! & f(\xx^{(t)}) \!-\!\tfrac{\eta}{2} \norm{\nabla f(\xx^{(t)})}_2^2 \!-\! (\tfrac{\eta}{2} - \tfrac{L\eta^2}{2})\E\norm{\tfrac{1}{n\eta} \tsum_{i=1}^n \cc_i^{(t+1)}}_2^2
+    \\
+            & + \tfrac{\eta}{2} \E\norm{\tfrac{1}{n\eta} \tsum_{i=1}^n \cc_i^{(t+1)} - \nabla f(\xx^{(t)})}_2^2.
+  \end{align*}
+  By taking $\eta\le\tfrac{1}{2L}$, we have $- (\tfrac{\eta}{2} - \tfrac{L\eta^2}{2}) \le -\frac{\eta}{4}$
+  \begin{align*}
+    \E f(\xx^{(t+1)}) \le & f(\xx^{(t)})  -\tfrac{\eta}{2} \norm{\nabla f(\xx^{(t)})}_2^2 - \tfrac{\eta}{4}\E\norm{\tfrac{1}{n\eta} \tsum_{i=1}^n \cc_i^{(t+1)}}_2^2 \\
+                          & + \tfrac{\eta}{2} \E\norm{\tfrac{1}{n\eta} \tsum_{i=1}^n \cc_i^{(t+1)} - \nabla f(\xx^{(t)})}_2^2.
+  \end{align*}
+  Average over $t=0$ to $T-1$ gives
+  \begin{align*}
+        & \tfrac{1}{T}\tsum_{t=0}^{T-1} \norm{\nabla f(\xx^{(t)})}_2^2 + \tfrac{1}{2T}\tsum_{t=0}^{T-1} \E \norm{\tfrac{1}{n\eta} \tsum_{i=1}^n \cc_i^{(t+1)} }_2^2 \\
+    \le & \tfrac{2(f(\xx^{0}) - f^\star )}{\eta T}
+    + \tfrac{1}{T}\tsum_{t=0}^{T-1} \E \norm{ \tfrac{1}{n\eta} \tsum_{i=1}^n \cc_i^{(t+1)}  - \nabla f(\xx^{(t)}) }_2^2.
+  \end{align*}
+\end{proof}
+
+
+\begin{lemma}\label{lemma:cE}
+  The error $\cE^{t+1}=\norm{ \tfrac{1}{n\eta} \tsum_{i=1}^n \cc_i^{(t+1)}  - \nabla f(\xx^{(t)}) }_2^2$ has the following  upper bound
+  \begin{align*}
+    \tfrac{1}{T}\tsum_{t=0}^{T-1}\cE^{t+1}
+    \le &
+    \left( \tfrac{144\delta}{\rho^2} +\tfrac{72(1-\delta)(1-\rho)}{\rho^2}\right) \left(\tfrac{2}{T}\tsum_{t=1}^{T-1} \norm{\nabla f(\xx^{(t)}) }_2^2
+    +  2  \zeta^2
+    + \alpha\sigma^2 \right)
+    + \tfrac{2|\bset|}{n}\tfrac{1}{T}\tsum_{t=0}^{T-1} \norm*{ \nabla f(\xx^{(t)}) }_2^2.                                                      \\
+        & + \left( \tfrac{144\delta}{\rho^2} +\tfrac{72(1-\delta)(1-\rho)}{\rho^2}\right) \tfrac{1}{\alpha T}(2\norm{\nabla f(\xx^{(0)}) }_2^2
+    + 2 \zeta^2 + \sigma^2)                                                                                                                    \\
+        & + \tfrac{|\gset|}{n} \tfrac{6(1-\alpha)^2L^2}{\alpha^2T} \tsum_{t=0}^{T-1}
+    \norm{ \tfrac{1}{n} \tsum_{i=1}^n \cc_i^{(t)} }_2^2
+    + \tfrac{|\gset|}{n} \tfrac{2\alpha\sigma^2}{|\gset|} + \tfrac{|\gset|}{n} \tfrac{2\sigma^2}{ \alpha  T|\gset|}.
+  \end{align*}\end{lemma}
+
+\begin{proof}
+  Within this proof, let us denote $\cE^{t+1}=\norm{ \tfrac{1}{n\eta} \tsum_{i=1}^n \cc_i^{(t+1)}  - \nabla f(\xx^{(t)}) }_2^2$
+  \begin{align*}
+    \cE^{t+1} = & \norm*{ \tfrac{|\gset|}{n} ( \tfrac{1}{|\gset|\eta} \tsum_{i\in\gset} \cc_i^{(t+1)}  - \nabla f(\xx^{(t)})) + \tfrac{|\bset|}{n} (\tfrac{1}{|\bset|\eta}\tsum_{i\in\bset} \cc_i^{(t+1)}  - \nabla f(\xx^{(t)})) }_2^2 \\
+    \le         & \tfrac{|\gset|}{n} \underbrace{ \norm*{ \tfrac{1}{|\gset|\eta}  \tsum_{i\in\gset} \cc_i^{(t+1)}  - \nabla f(\xx^{(t)})  }_2^2 }_{=: \cE^{t+1}_{\gset} }
+    + \tfrac{|\bset|}{n} \underbrace{\norm*{ \tfrac{1}{|\bset|\eta} \tsum_{i\in\bset} \cc_i^{(t+1)}  - \nabla f(\xx^{(t)}) }_2^2 }_{=: \cE^{t+1}_{\bset} }.
+  \end{align*}
+
+  \paragraph*{The error from the regular workers.}
+  Let us bound the error among the regular workers
+  \begin{align*}
+    \cE_{\gset}^{t+1} = & \tfrac{1}{\eta^2}
+    \norm*{ \bar{\cc}^{(t+1)}  - \eta \nabla f(\xx^{(t)}) \pm \eta \bar{\mm}^{(t+1)}  }_2^2 \\
+    \le                 & 2 \tfrac{1}{\eta^2}
+    \norm*{ \bar{\cc}^{(t+1)}  - \eta \bar{\mm}^{(t+1)}  }_2^2
+    + 2 \tfrac{1}{\eta^2}
+    \norm*{ \eta \bar{\mm}^{(t+1)}   - \eta \nabla f(\xx^{(t)}) }_2^2                       \\
+    \le                 & 2 \underbrace{\tfrac{1}{\eta^2}
+      \norm*{ \bar{\cc}^{(t+1)}  - \eta \bar{\mm}^{(t+1)}  }_2^2 }_{=: \cE^{t+1}_{\gset,1} }
+    + 2
+    \norm*{ \bar{\mm}^{(t+1)}   -  \nabla f(\xx^{(t)}) }_2^2.
+  \end{align*}
+  The second term can be bounded by \Cref{lemma:gm}
+  \begin{align*}
+    \tfrac{1}{T} \tsum_{t=0}^{T-1}
+    \E\norm{\bar{\mm}^{t+1} - \nabla f(\xx^{(t)}) }_2^2
+    \le & \tfrac{3(1-\alpha)^2L^2}{\alpha^2T} \tsum_{t=0}^{T-1}
+    \norm{ \tfrac{1}{n} \tsum_{i=1}^n \cc_i^{(t)} }_2^2
+    + \tfrac{\alpha\sigma^2}{|\gset|} + \tfrac{\sigma^2}{ \alpha  T|\gset|}.
+  \end{align*}
+  The first term $\cE^{t+1}_{\gset,1}$ can be bounded using \Cref{lemma:ci_mi}
+  \begin{align*}
+    \tfrac{1}{T} \tsum_{t=0}^{T-1} \cE^{t+1}_{\gset,1}
+    \le & \tfrac{1}{\eta^2} \tfrac{1}{T|\gset|} \tsum_{t=0}^{T-1} \tsum_{i\in\gset}
+    \norm*{ \cc_i^{(t+1)}  - \eta \mm_i^{(t+1)}  }_2^2                                                                                       \\
+    \le &
+    \tfrac{3}{\eta^2}\tfrac{1}{T|\gset|}\tsum_{t=0}^{T-1}\tsum_{i\in\gset} \left(\max\left\{0, \norm*{\vv_i^{(t+1)}}_2-\tau\right\}\right)^2 \\
+        & +
+    \tfrac{36(1-\rho)}{\rho^2} \left(\tfrac{2}{T}\tsum_{t=1}^{T-1} \norm{\nabla f(\xx^{(t)}) }_2^2
+    +  2  \zeta^2
+    + \alpha\sigma^2
+    + \tfrac{1}{\alpha T}(2\norm{\nabla f(\xx^{(0)}) }_2^2
+      + 2 \zeta^2
+      + \sigma^2) \right).
+  \end{align*}
+  Therefore we have that
+  \begin{align*}
+    \tfrac{1}{T} \tsum_{t=0}^{T-1} \cE^{t+1}_{\gset}
+    \le &
+    \tfrac{6}{\eta^2}\tfrac{1}{T|\gset|}\tsum_{t=0}^{T-1}\tsum_{i\in\gset} \left(\max\left\{0, \norm*{\vv_i^{(t+1)}}_2-\tau\right\}\right)^2 \\
+        & +
+    \tfrac{72(1-\rho)}{\rho^2} \left(\tfrac{2}{T}\tsum_{t=1}^{T-1} \norm{\nabla f(\xx^{(t)}) }_2^2
+    +  2  \zeta^2
+    + \alpha\sigma^2 \right)                                                                                                                 \\
+        & + \tfrac{72(1-\rho)}{\rho^2} \tfrac{1}{\alpha T}(2\norm{\nabla f(\xx^{(0)}) }_2^2
+    + 2 \zeta^2 + \sigma^2)                                                                                                                  \\
+        & + \tfrac{6(1-\alpha)^2L^2}{\alpha^2T} \tsum_{t=0}^{T-1}
+    \norm{ \tfrac{1}{n} \tsum_{i=1}^n \cc_i^{(t)} }_2^2
+    + \tfrac{2\alpha\sigma^2}{|\gset|} + \tfrac{2\sigma^2}{ \alpha  T|\gset|}.
+  \end{align*}
+
+  \paragraph{The error from the Byzantine workers.}  Now we only consider clipping gradient to 0 which can be improved by clipping to a public vector.
+  \begin{align*}
+    \tfrac{1}{T}\tsum_{t=0}^{T-1} \cE_{\bset}^{t+1}
+    \le & \tfrac{2}{T}\tsum_{t=0}^{T-1} \left(
+    \norm*{ \tfrac{1}{|\bset|\eta} \tsum_{i\in\bset} \cc_i^{(t+1)} }_2^2 + \norm*{ \nabla f(\xx^{(t)}) }_2^2
+    \right)                                                                                              \\
+    \le & \tfrac{2}{T}\tsum_{t=0}^{T-1} \left(\tfrac{1}{|\bset|\eta^2} \tsum_{i\in\bset}
+    \norm*{ \cc_i^{(t+1)} }_2^2 + \norm*{ \nabla f(\xx^{(t)}) }_2^2
+    \right)                                                                                              \\
+    \le & \tfrac{2}{T}\tsum_{t=0}^{T-1} \left(\tfrac{\tau^2}{\eta^2} + \norm*{ \nabla f(\xx^{(t)}) }_2^2
+    \right)                                                                                              \\
+    =   & \tfrac{2\tau^2}{\eta^2} +  \tfrac{2}{T}\tsum_{t=0}^{T-1} \norm*{ \nabla f(\xx^{(t)}) }_2^2.
+  \end{align*}
+  Then the overall error can be bounded as follows
+  \begin{align*}
+    \tfrac{1}{T}\tsum_{t=0}^{T-1} \cE^{t+1}
+    \le &
+    \underbrace{
+      \tfrac{|\gset|}{n} \tfrac{6}{\eta^2}\tfrac{1}{T|\gset|}\tsum_{t=0}^{T-1}\tsum_{i\in\gset} \left(\max\left\{0, \norm*{\vv_i^{(t+1)}}_2-\tau\right\}\right)^2 + \tfrac{|\bset|}{n} \tfrac{ 2 \tau^2 }{\eta^2}
+    }_{\cT_1}
+    \\
+        & +
+    \tfrac{|\gset|}{n} \tfrac{72(1-\rho)}{\rho^2} \left(\tfrac{2}{T}\tsum_{t=1}^{T-1} \norm{\nabla f(\xx^{(t)}) }_2^2
+    +  2  \zeta^2
+    + \alpha\sigma^2 \right)
+    + \tfrac{2|\bset|}{n}\tfrac{1}{T}\tsum_{t=0}^{T-1} \norm*{ \nabla f(\xx^{(t)}) }_2^2.                      \\
+        & + \tfrac{|\gset|}{n} \tfrac{72(1-\rho)}{\rho^2} \tfrac{1}{\alpha T}(2\norm{\nabla f(\xx^{(0)}) }_2^2
+    + 2 \zeta^2 + \sigma^2)                                                                                    \\
+        & + \tfrac{|\gset|}{n} \tfrac{6(1-\alpha)^2L^2}{\alpha^2T} \tsum_{t=0}^{T-1}
+    \norm{ \tfrac{1}{n} \tsum_{i=1}^n \cc_i^{(t)} }_2^2
+    + \tfrac{|\gset|}{n} \tfrac{2\alpha\sigma^2}{|\gset|} + \tfrac{|\gset|}{n} \tfrac{2\sigma^2}{ \alpha  T|\gset|}.
+  \end{align*}
+
+  \paragraph*{Determine the clipping radius.} We minimize the upper bound of $\cT_1$ by the
+  \begin{align*}
+        & \tfrac{|\gset|}{n} \tfrac{6}{\eta^2}\tfrac{1}{T|\gset|}\tsum_{t=0}^{T-1}\tsum_{i\in\gset} \left(\max\left\{0, \norm*{\vv_i^{(t+1)}}_2-\tau\right\}\right)^2 + \tfrac{|\bset|}{n} \tfrac{ 2 \tau^2 }{\eta^2} \\
+    \le & \tfrac{6}{\eta^2} \tfrac{1}{T} \tsum_{t=0}^{T-1} \left(
+    \tfrac{1-\delta}{|\gset|} \tsum_{i\in\gset} \left(\max\left\{0, \norm*{\vv_i^{(t+1)}}_2-\tau\right\}\right)^2 + \delta\tau^2
+    \right)                                                                                                                                                                                                           \\
+    =   & \tfrac{6}{\eta^2} \tfrac{1}{T} \tsum_{t=0}^{T-1} \left(
+    \tfrac{|\gset\cap\left\{j: \norm*{\vv_j^{(t+1)}}_2> \tau\right\}|}{|\gset|}
+    \tfrac{1-\delta}{|\gset\cap\left\{j: \norm*{\vv_j^{(t+1)}}_2> \tau\right\}|} \tsum_{i\in\gset\cap\left\{j: \norm*{\vv_j^{(t+1)}}_2> \tau\right\} } \left(\norm*{\vv_i^{(t+1)}}_2-\tau\right)^2 + \delta\tau^2
+    \right)
+  \end{align*}
+  We pick the clipping radius $\tau^{(t+1)}$ to be the largest $\delta$ quantile of $\{\norm*{\vv_j^{(t+1)}}\}_{j\in\gset}$. Then we have
+  \begin{align*}
+    \tfrac{|\gset\cap\left\{j: \norm*{\vv_j^{(t+1)}}_2> \tau\right\}|}{|\gset|} \le \delta
+  \end{align*}
+  and therefore
+  \begin{align*}
+    \cT_1 \le & \tfrac{6\delta}{\eta^2} \tfrac{1}{T} \tsum_{t=0}^{T-1} \left(
+    \tfrac{1}{|\gset\cap\left\{j: \norm*{\vv_j^{(t+1)}}_2> \tau\right\}|} \tsum_{i\in\gset\cap\left\{j: \norm*{\vv_j^{(t+1)}}_2> \tau\right\} } \left(\norm*{\vv_i^{(t+1)}}_2-\tau\right)^2 + \tau^2
+    \right)                                                                   \\
+    \le       & \tfrac{6\delta}{\eta^2} \tfrac{1}{T} \tsum_{t=0}^{T-1} \left(
+    \tfrac{1}{|\gset\cap\left\{j: \norm*{\vv_j^{(t+1)}}_2> \tau\right\}|} \tsum_{i\in\gset\cap\left\{j: \norm*{\vv_j^{(t+1)}}_2> \tau\right\} } \norm*{\vv_i^{(t+1)}}_2^2  \right).
+  \end{align*}
+  For all $i\in\gset$, $\norm{\vv_i^{(t+1)}}_2^2$ can be bounded with $\norm{\nabla f(\xx^{(t)})}_2^2$ and constants $\zeta^2$ and $\sigma^2$
+  \begin{align*}
+                                         & \tfrac{1}{T} \tsum_{t=0}^{T-1} \norm*{\vv_i^{(t+1)}}_2^2                                                                                                                                                                    \\
+    \le                                  & \tfrac{2}{T} \tsum_{t=0}^{T-1} \left(\norm*{\vv_i^{(t+1)}-(\eta \mm_i^{(t+1)} + \rr_i^{(t)} ) }_2^2
+    + \norm*{ \eta \mm_i^{(t+1)} + \rr_i^{(t)} }_2^2 \right)                                                                                                                                                                                                           \\
+    \le                                  & \tfrac{2}{T} \tsum_{t=0}^{T-1} \left((1-\rho)\norm*{\eta \mm_i^{(t+1)} + \rr_i^{(t)} }_2^2
+    + \norm*{ \eta \mm_i^{(t+1)} + \rr_i^{(t)} }_2^2 \right)                                                                                                                                                                                                           \\
+    \le                                  & \tfrac{4}{T} \tsum_{t=0}^{T-1} \norm*{ \eta \mm_i^{(t+1)} + \rr_i^{(t)} }_2^2                                                                                                                                               \\
+    \stackrel{\Cref{lemma:etam_r} }{\le} & \tfrac{24\eta^2}{\rho^2 T} \tsum_{t=0}^{T-1} \norm*{ \mm_i^{(t+1)} }_2^2                                                                                                                                                    \\
+    \stackrel{\Cref{lemma:mi} }{\le}     & \tfrac{24\eta^2}{\rho^2} \left( \tfrac{2}{T}\tsum_{t=1}^{T-1}  \norm*{ \nabla f(\xx^{(t)}) }_2^2 + 2\zeta^2 + \alpha\sigma^2 + \tfrac{1}{\alpha T}\left(2\norm{\nabla f(\xx^0)}_2^2 + 2\zeta^2 + \sigma^2 \right)  \right).
+  \end{align*}
+  Now we can upper bound $\tfrac{1}{T}\tsum_{t=0}^{T-1}\cE^{t+1}$ as Follows
+  \begin{align*}
+    \tfrac{1}{T}\tsum_{t=0}^{T-1}\cE^{t+1}
+    \le & \tfrac{6\delta}{\eta^2} \tfrac{24\eta^2}{\rho^2} \left( \tfrac{2}{T}\tsum_{t=1}^{T-1} \norm*{ \nabla f(\xx^{(t)}) }_2^2 + 2\zeta^2 + \alpha\sigma^2 + \tfrac{1}{\alpha T}\left(2\norm{\nabla f(\xx^0)}_2^2 + 2\zeta^2 + \sigma^2 \right)  \right) \\
+        & +
+    \tfrac{|\gset|}{n} \tfrac{72(1-\rho)}{\rho^2} \left(\tfrac{2}{T}\tsum_{t=1}^{T-1} \norm{\nabla f(\xx^{(t)}) }_2^2
+    +  2  \zeta^2
+    + \alpha\sigma^2 \right)
+    + \tfrac{2|\bset|}{n}\tfrac{1}{T}\tsum_{t=0}^{T-1} \norm*{ \nabla f(\xx^{(t)}) }_2^2.                                                                                                                                                                   \\
+        & + \tfrac{|\gset|}{n} \tfrac{72(1-\rho)}{\rho^2} \tfrac{1}{\alpha T}(2\norm{\nabla f(\xx^{(0)}) }_2^2
+    + 2 \zeta^2 + \sigma^2)                                                                                                                                                                                                                                 \\
+        & + \tfrac{|\gset|}{n} \tfrac{6(1-\alpha)^2L^2}{\alpha^2T} \tsum_{t=0}^{T-1}
+    \norm{ \tfrac{1}{n} \tsum_{i=1}^n \cc_i^{(t)} }_2^2
+    + \tfrac{|\gset|}{n} \tfrac{2\alpha\sigma^2}{|\gset|} + \tfrac{|\gset|}{n} \tfrac{2\sigma^2}{ \alpha  T|\gset|}                                                                                                                                         \\
+    \le &
+    \left( \tfrac{144\delta}{\rho^2} +\tfrac{72(1-\delta)(1-\rho)}{\rho^2}\right) \left(\tfrac{2}{T}\tsum_{t=1}^{T-1} \norm{\nabla f(\xx^{(t)}) }_2^2
+    +  2  \zeta^2
+    + \alpha\sigma^2 \right)
+    + \tfrac{2|\bset|}{n}\tfrac{1}{T}\tsum_{t=0}^{T-1} \norm*{ \nabla f(\xx^{(t)}) }_2^2.                                                                                                                                                                   \\
+        & + \left( \tfrac{144\delta}{\rho^2} +\tfrac{72(1-\delta)(1-\rho)}{\rho^2}\right) \tfrac{1}{\alpha T}(2\norm{\nabla f(\xx^{(0)}) }_2^2
+    + 2 \zeta^2 + \sigma^2)                                                                                                                                                                                                                                 \\
+        & + \tfrac{|\gset|}{n} \tfrac{6(1-\alpha)^2L^2}{\alpha^2T} \tsum_{t=0}^{T-1}
+    \norm{ \tfrac{1}{n} \tsum_{i=1}^n \cc_i^{(t)} }_2^2
+    + \tfrac{|\gset|}{n} \tfrac{2\alpha\sigma^2}{|\gset|} + \tfrac{|\gset|}{n} \tfrac{2\sigma^2}{ \alpha  T|\gset|}.
+  \end{align*}
+\end{proof}
+
+
+\begin{theorem}
+  Assume Assumption ... holds true.  If we pick $\alpha=4L\eta$ and
+  \begin{align*}
+    \eta = \sqrt{\tfrac{n}{32 L^2 T \sigma^2} \left( 8L(f(\xx^{0}) - f^\star) + 2\norm{\nabla f(\xx^{(0)}) }_2^2 + 2 \zeta^2 + \sigma^2 +\tfrac{2\sigma^2}{n} \right)}.
+  \end{align*}
+  Then
+  \begin{align*}
+    \tfrac{1}{T}\tsum_{t=0}^{T-1} \norm{\nabla f(\xx^{(t)})}_2^2
+    \le & {2\left( \tfrac{144\delta}{\rho^2} +\tfrac{72(1-\delta)(1-\rho)}{\rho^2}\right) \left( 2  \zeta^2 + \alpha\sigma^2 \right)}                               \\
+        & + \sqrt{\tfrac{32\sigma^2}{T n} \left( 8L(f(\xx^{0}) - f^\star) + 2\norm{\nabla f(\xx^{(0)}) }_2^2 + 2 \zeta^2 + \sigma^2 +\tfrac{2\sigma^2}{n} \right)}.
+  \end{align*}
+\end{theorem}
+\begin{proof}
+  Combine \Cref{lemma:sd} and \Cref{lemma:cE},
+  \begin{align*}
+        & \tfrac{1}{T}\tsum_{t=0}^{T-1} \norm{\nabla f(\xx^{(t)})}_2^2 + \tfrac{1}{2T}\tsum_{t=0}^{T-1} \E \norm{\tfrac{1}{n\eta} \tsum_{i=1}^n \cc_i^{(t+1)} }_2^2 \\
+    \le & \tfrac{2(f(\xx^{0}) - f^\star )}{\eta T}
+    + \left( \tfrac{144\delta}{\rho^2} +\tfrac{72(1-\delta)(1-\rho)}{\rho^2}\right) \left(\tfrac{2}{T}\tsum_{t=1}^{T-1} \norm{\nabla f(\xx^{(t)}) }_2^2
+    +  2  \zeta^2
+    + \alpha\sigma^2 \right)
+    + \tfrac{2\delta}{T}\tsum_{t=0}^{T-1} \norm*{ \nabla f(\xx^{(t)}) }_2^2                                                                                         \\
+        & + \left( \tfrac{144\delta}{\rho^2} +\tfrac{72(1-\delta)(1-\rho)}{\rho^2}\right) \tfrac{1}{\alpha T}(2\norm{\nabla f(\xx^{(0)}) }_2^2
+    + 2 \zeta^2 + \sigma^2)                                                                                                                                         \\
+        & + \tfrac{|\gset|}{n} \tfrac{6(1-\alpha)^2L^2}{\alpha^2T} \tsum_{t=0}^{T-1}
+    \norm{ \tfrac{1}{n} \tsum_{i=1}^n \cc_i^{(t)} }_2^2
+    + \tfrac{|\gset|}{n} \tfrac{2\alpha\sigma^2}{|\gset|} + \tfrac{|\gset|}{n} \tfrac{2\sigma^2}{ \alpha  T|\gset|}.
+  \end{align*}
+  We choose $\alpha\le 4L\eta$ such that the coefficient of $\tfrac{1}{T}\tsum_{t=0}^{T-1}\norm{\tfrac{1}{n}\tsum_{i=1}^n \cc_i^{(t)} }_2^2$ on the RHS is less than LHS, i.e.,
+  \begin{align*}
+    \tfrac{6(1-\delta)(1-\alpha)^2L^2}{\alpha^2} \le \tfrac{1}{2\eta^2}.
+  \end{align*}
+  If $\delta\le \tfrac{1}{2000}$ and $\rho\ge1-\tfrac{1}{500}$, then we would like the coefficient of $\tfrac{1}{T}\tsum_{t=0}^{T-1} \norm{\nabla f(\xx^{(t)})}_2^2$ of the LHS to be smaller than RHS, i.e.
+  \begin{align*}
+    2 \left( \tfrac{144\delta}{\rho^2} +\tfrac{72(1-\delta)(1-\rho)}{\rho^2}\right) + 2\delta \le 1/2.
+  \end{align*}
+  Then
+  \begin{align*}
+    \tfrac{1}{T}\tsum_{t=0}^{T-1} \norm{\nabla f(\xx^{(t)})}_2^2
+    \le & \tfrac{4(f(\xx^{0}) - f^\star )}{\eta T}
+    + \underbrace{2\left( \tfrac{144\delta}{\rho^2} +\tfrac{72(1-\delta)(1-\rho)}{\rho^2}\right) \left( 2  \zeta^2 + \alpha\sigma^2 \right)}_\text{Independent of $T$, $\eta$, and $\alpha$} \\
+        & + \tfrac{2}{\alpha T}(2\norm{\nabla f(\xx^{(0)}) }_2^2
+    + 2 \zeta^2 + \sigma^2)
+    + \tfrac{4\alpha\sigma^2}{n} + \tfrac{4\sigma^2}{ \alpha  T n}.
+  \end{align*}
+  Now we fix $\alpha=4L\eta$ and determine the optimal $\eta$ based on the last inequality
+  \begin{align*}
+    \tfrac{1}{2 \eta L T} \left( 8L(f(\xx^{0}) - f^\star) + 2\norm{\nabla f(\xx^{(0)}) }_2^2 + 2 \zeta^2 + \sigma^2 +\tfrac{2\sigma^2}{n} \right)
+    + \tfrac{16L\eta\sigma^2}{n}.
+  \end{align*}
+  That is, we pick $\eta$ to be
+  \begin{align*}
+    \eta = \sqrt{\tfrac{n}{32 L^2 T \sigma^2} \left( 8L(f(\xx^{0}) - f^\star) + 2\norm{\nabla f(\xx^{(0)}) }_2^2 + 2 \zeta^2 + \sigma^2 +\tfrac{2\sigma^2}{n} \right)}.
+  \end{align*}
+  Finally,
+  \begin{align*}
+    \tfrac{1}{T}\tsum_{t=0}^{T-1} \norm{\nabla f(\xx^{(t)})}_2^2
+    \le & {2\left( \tfrac{144\delta}{\rho^2} +\tfrac{72(1-\delta)(1-\rho)}{\rho^2}\right) \left( 2  \zeta^2 + \alpha\sigma^2 \right)}                               \\
+        & + \sqrt{\tfrac{32\sigma^2}{T n} \left( 8L(f(\xx^{0}) - f^\star) + 2\norm{\nabla f(\xx^{(0)}) }_2^2 + 2 \zeta^2 + \sigma^2 +\tfrac{2\sigma^2}{n} \right)}.
+  \end{align*}
+\end{proof}
+
+
+\subsection{Supplementary lemmas}
+\begin{lemma}
+  [clipping]\label{lemma:clipping}
+  Suppose $\cc=\vv\min\left(1, \tau/\norm{\vv}_2 \right)$ is the clipped vector of $\vv$, then
+  \begin{align*}
+    \norm{\cc - \vv}_2^2 \le  (\max\{0, \norm{\vv}_2 - \tau\} )^2.
+  \end{align*}
+\end{lemma}
+\begin{proof}
+  If $\norm{\vv}_2 \le \tau$, then
+  \begin{align*}
+    \norm{\cc - \vv}_2^2 = 0.
+  \end{align*}
+  If $\norm{\vv}_2 \ge \tau$, then
+  \begin{align*}
+    \norm{\cc - \vv}_2^2 = \norm*{\vv ( \tfrac{\tau}{\norm{\vv}_2} - 1 ) }_2^2
+    \le (\tau - \norm{\vv}_2)^2.
+    % \le \tfrac{1}{\tau^2} \norm{\vv}_2^4.
+  \end{align*}
+\end{proof}
+\begin{lemma}
+  \label{lemma:ci_mi}
+  The clipped value of regular workers deviates from the momentum with bounded distances.
+  \begin{align*}
+        & \tfrac{1}{T|\gset|}\tsum_{t=0}^{T-1}\tsum_{i\in\gset}\norm*{ \cc_i^{(t+1)}  - \eta \mm_i^{(t+1)}  }_2^2           \\
+    \le &
+    \tfrac{3}{T|\gset|}\tsum_{t=0}^{T-1}\tsum_{i\in\gset} \left(\max\left\{0, \norm*{\vv_i^{(t+1)}}_2-\tau\right\}\right)^2 \\
+        & +
+    \tfrac{36(1-\rho)\eta^2}{\rho^2} \left(\tfrac{2}{T}\tsum_{t=1}^{T-1} \norm{\nabla f(\xx^{(t)}) }_2^2
+    +  2  \zeta^2
+    + \alpha\sigma^2
+    + \tfrac{1}{\alpha T}(2\norm{\nabla f(\xx^{(0)}) }_2^2
+      + 2 \zeta^2
+      + \sigma^2) \right).
+  \end{align*}
+\end{lemma}
+\begin{proof}
+  \begin{align*}
+    \norm*{ \cc_i^{(t+1)}  - \eta \mm_i^{(t+1)}  }_2^2 \le &
+    3\left(\norm*{ \cc_i^{(t+1)}  - \vv_i^{(t+1)}  }_2^2
+    + \norm*{ \vv_i^{(t+1)}  - \eta \mm_i^{(t+1)} - \rr_i^{(t)}  }_2^2
+    + \norm*{ \rr_i^{(t)} }_2^2
+    \right)                                                  \\
+    \stackrel{\Cref{lemma:clipping} }{\le}                 &
+    3\left( \left(\max\left\{0, \norm*{\vv_i^{(t+1)}}_2-\tau\right\}\right)^2
+    + \norm*{ \vv_i^{(t+1)}  - \eta \mm_i^{(t+1)} - \rr_i^{(t)}  }_2^2
+    + \norm*{ \rr_i^{(t)} }_2^2 \right)                      \\
+    =                                                      &
+    3\left( \left(\max\left\{0, \norm*{\vv_i^{(t+1)}}_2-\tau\right\}\right)^2
+    + \norm*{ \rr_i^{(t+1)}  }_2^2
+    + \norm*{ \rr_i^{(t)} }_2^2 \right).
+  \end{align*}
+  Average over time gives
+  \begin{align*}
+                                   & \tfrac{1}{T|\gset|}\tsum_{t=0}^{T-1}\tsum_{i\in\gset}\norm*{ \cc_i^{(t+1)}  - \eta \mm_i^{(t+1)}  }_2^2 \\
+    \le                            &
+    \tfrac{3}{T|\gset|}\tsum_{t=0}^{T-1}\tsum_{i\in\gset}\left( \left(\max\left\{0, \norm*{\vv_i^{(t+1)}}_2-\tau\right\}\right)^2
+    + 2 \norm*{ \rr_i^{(t+1)}  }_2^2\right)                                                                                                  \\
+    \stackrel{\eqref{eq:rho}}{\le} &
+    \tfrac{3}{T|\gset|}\tsum_{t=0}^{T-1}\tsum_{i\in\gset}\left( \left(\max\left\{0, \norm*{\vv_i^{(t+1)}}_2-\tau\right\}\right)^2
+    + 2(1-\rho) \norm*{ \eta\mm_i^{(t+1)} + \rr_i^{(t)}  }_2^2\right).
+  \end{align*}
+
+  From \Cref{lemma:etam_r}, we know that
+  \begin{align*}
+    \tfrac{1}{T|\gset|} \tsum_{t=0}^{T-1} \tsum_{i\in\gset} \norm{\eta\mm_i^{(t+1)} +\rr_i^{(t)} }_2^2
+    \le & \tfrac{6\eta^2}{\rho^2} \tfrac{1}{T|\gset|}  \tsum_{t=0}^{T-1} \tsum_{i\in\gset}\norm{\mm_i^{(t+1)} }_2^2.
+  \end{align*}
+  Applying \Cref{lemma:mi} to $\tfrac{1}{T|\gset|}\tsum_{t=0}^{T-1} \tsum_{i\in\gset}
+    \E\norm{\mm_i^{(t+1)}}_2^2$ yields
+  \begin{align*}
+        & \tfrac{1}{T|\gset|} \tsum_{t=0}^{T-1} \tsum_{i\in\gset} \norm{\eta\mm_i^{(t+1)} +\rr_i^{(t)} }_2^2 \\
+    \le & \tfrac{6\eta^2}{\rho^2} \left(\tfrac{2}{T}\tsum_{t=1}^{T-1} \norm{\nabla f(\xx^{(t)}) }_2^2
+    +  2  \zeta^2
+    + \alpha\sigma^2
+    + \tfrac{1}{\alpha T}(2\norm{\nabla f(\xx^{(0)}) }_2^2
+      + 2 \zeta^2
+      + \sigma^2). \right)
+  \end{align*}
+  Then we have that
+  \begin{align*}
+        & \tfrac{1}{T|\gset|}\tsum_{t=0}^{T-1}\tsum_{i\in\gset}\norm*{ \cc_i^{(t+1)}  - \eta \mm_i^{(t+1)}  }_2^2            \\
+    \le &
+    \tfrac{3}{T|\gset|}\tsum_{t=0}^{T-1}\tsum_{i\in\gset}  \left(\max\left\{0, \norm*{\vv_i^{(t+1)}}_2-\tau\right\}\right)^2 \\
+        & +
+    \tfrac{36(1-\rho)\eta^2}{\rho^2} \left(\tfrac{2}{T}\tsum_{t=1}^{T-1} \norm{\nabla f(\xx^{(t)}) }_2^2
+    +  2  \zeta^2
+    + \alpha\sigma^2
+    + \tfrac{1}{\alpha T}(2\norm{\nabla f(\xx^{(0)}) }_2^2
+      + 2 \zeta^2
+      + \sigma^2) \right).
+  \end{align*}
+
+
+\end{proof}
+\begin{lemma}\label{lemma:m:var}
+  The variance of averaged momentum variable $\bar{\mm}^{(t+1)}$ satisfies
+  \begin{equation}
+    % \label{eq:m:var}
+    \E\norm{\bar{\mm}^{(t+1)} - \E\bar{\mm}^{(t+1)} }_2^2 \leq \tfrac{\alpha^2\sigma^2}{|\gset|} \qquad \forall~t>0
+  \end{equation}
+  and $\E\norm{\bar{\mm}^{(1)} - \E\bar{\mm}^{(1)} }_2^2 \leq \tfrac{\sigma^2}{|\gset|}$.
+\end{lemma}
+\begin{proof}
+  Expand the momentum at time $t+1$
+  \begin{align*}
+    \E\norm{\bar{\mm}^{(t+1)} - \E\bar{\mm}^{(t+1)} }_2^2
+    \stackrel{\eqref{eq:m}}{=} & \E\norm{\tfrac{1}{|\gset|}\tsum_{i\in\gset} ((1-\alpha)\mm_i^{(t)} + \alpha \gg_i^{(t)} - (1-\alpha)\mm_i^{(t)} - \alpha \E\gg_i^{(t)}) }_2^2 \\
+    =                          & \E\norm{\tfrac{\alpha}{|\gset|}\tsum_{i\in\gset} (\gg_i^{(t)} - \E\gg_i^{(t)} ) }_2^2
+    \stackrel{\eqref{eq:random}}{\leq} \tfrac{\alpha^2\sigma^2}{|\gset|}.
+  \end{align*}
+\end{proof}
+
+\begin{lemma}\label{lemma:gem}
+  The norm of difference between gradient and expected
+  for $t>0$
+  \begin{align*}
+    \norm{\nabla f(\xx^{(t)}) - \E \bar{\mm}^{(t+1)} }_2^2
+    \le &
+    (1-\alpha) \norm{\nabla f(\xx^{(t-1)})- \bar{\mm}^{(t)}}_2^2
+    + \tfrac{3(1-\alpha)^2L^2 }{\alpha}  \norm*{ \tfrac{1}{n} \tsum_{i=1}^n \cc_i^{(t)} }_2^2.
+  \end{align*}
+  For $t=0$ we have that $\norm{\nabla f(\xx^{(0)}) - \E \bar{\mm}^{(1)} }_2^2=0$.
+\end{lemma}
+\begin{proof}
+  Using (\ref{eq:m}) we have
+  \begin{align*}
+    \norm{\nabla f(\xx^{(t)}) - \E \bar{\mm}^{(t+1)} }_2^2
+    \stackrel{\eqref{eq:m}}{=} & \norm{\nabla f(\xx^{(t)}) - (1-\alpha)\bar{\mm}^{(t)} - \alpha \nabla f(\xx^{(t)}) }_2^2 \\
+    =                          & (1-\alpha)^2  \norm{\nabla f(\xx^{(t)}) - \bar{\mm}^{(t)} }_2^2
+  \end{align*}
+  We can use Young's inequality with $\epsilon=\tfrac{\alpha}{2}$ and L-smoothness
+  \begin{align*}
+    \norm{\nabla f(\xx^{(t)})- \bar{\mm}^{(t)}}_2^2
+    =   & \norm{\nabla f(\xx^{(t)}) \pm \nabla f(\xx^{(t-1)}) - \bar{\mm}^{(t)}}_2^2    \\
+    \le & (1+\tfrac{\alpha}{2}) \norm{ \nabla f(\xx^{(t-1)}) - \bar{\mm}^{(t)}}_2^2
+    + (1+\tfrac{2}{\alpha})      \norm{\nabla f(\xx^{(t)}) - \nabla f(\xx^{(t-1)})}_2^2 \\
+    \le & (1+\tfrac{\alpha}{2}) \norm{ \nabla f(\xx^{(t-1)}) - \bar{\mm}^{(t)}}_2^2
+    + (1+\tfrac{2}{\alpha}) L^2 \norm{\xx^{(t)} - \xx^{(t-1)}}_2^2                      \\
+    \le & (1+\tfrac{\alpha}{2}) \norm{ \nabla f(\xx^{(t-1)}) - \bar{\mm}^{(t)}}_2^2
+    + (1+\tfrac{2}{\alpha}) L^2  \norm*{ \tfrac{1}{n} \tsum_{i=1}^n \cc_i^{(t)} }_2^2.
+  \end{align*}
+  Combine both we have
+  \begin{align*}
+    \norm{\nabla f(\xx^{(t)}) - \E \bar{\mm}^{(t+1)} }_2^2
+    \le &
+    (1-\alpha) \norm{\nabla f(\xx^{(t-1)})- \bar{\mm}^{(t)}}_2^2
+    + \tfrac{3(1-\alpha)^2L^2}{\alpha}  \norm*{ \tfrac{1}{n} \tsum_{i=1}^n \cc_i^{(t)} }_2^2.
+  \end{align*}
+  For $t=0$ we have that $\norm{\nabla f(\xx^{(0)}) - \E \bar{\mm}^{(1)} }_2^2=0$.
+\end{proof}
+
+\begin{lemma}\label{lemma:gm}
+  The distance between $\bar{\mm}^{(t+1)}$ and $\nabla f(\xx^{(t)})$ can be bounded as follows
+  \begin{align*}
+    \tfrac{1}{T} \tsum_{t=0}^{T-1}
+    \E\norm{\bar{\mm}^{t+1} - \nabla f(\xx^{(t)}) }_2^2
+    \le & \tfrac{3(1-\alpha)^2 L^2\eta^2}{\alpha^2T} \tsum_{t=0}^{T-1}
+    \norm{ \tfrac{1}{n} \tsum_{i=1}^n \cc_i^{(t)} }_2^2
+    + \tfrac{\alpha\sigma^2}{|\gset|} + \tfrac{\sigma^2}{\alpha T|\gset|}.
+  \end{align*}
+\end{lemma}
+
+\begin{proof}
+  We have
+  \begin{equation}\label{eq:gm:1}
+    \E\norm{\nabla f(\xx^{(t)}) - \bar{\mm}^{(t+1)} }_2^2
+    =
+    \norm{\nabla f(\xx^{(t)}) - \E \bar{\mm}^{(t+1)} }_2^2
+    + \E\norm{\bar{\mm}^{(t+1)} - \E \bar{\mm}^{(t+1)} }_2^2.
+  \end{equation}
+  We can apply \Cref{lemma:gem} and \Cref{lemma:m:var} to the first and second term of \eqref{eq:gm:1} for $t>0$
+  \begin{align*}
+    \E\norm{\nabla f(\xx^{(t)}) - \bar{\mm}^{(t+1)} }_2^2
+    \le &
+    (1-\alpha) \norm{\nabla f(\xx^{(t-1)})- \bar{\mm}^{(t)}}_2^2
+    \!+\! \tfrac{3(1\!-\!\alpha)^2L^2 \eta^2}{\alpha}  \norm*{ \tfrac{1}{n} \tsum_{i=1}^n \cc_i^{(t)} }_2^2  + \tfrac{\alpha^2\sigma^2}{|\gset|}.
+  \end{align*}
+  For $t=0$ we have $\E\norm{\nabla f(\xx^{(t)}) - \bar{\mm}^{(t+1)} }_2^2 \leq \tfrac{\sigma^2}{|\gset|}$.
+
+  Average the inequality from $t=0$ to $T-1$ gives
+  \begin{align*}
+    \tfrac{1}{T} \tsum_{t=0}^{T-1}
+    \E\norm{\bar{\mm}^{t+1} - \nabla f(\xx^{(t)}) }_2^2
+    \le & \tfrac{3(1-\alpha)^2L^2\eta^2}{\alpha^2T} \tsum_{t=0}^{T-1}
+    \norm{ \tfrac{1}{n} \tsum_{i=1}^n \cc_i^{(t)} }_2^2
+    + \tfrac{\alpha\sigma^2}{|\gset|} + \tfrac{\sigma^2}{\alpha T|\gset|}.
+  \end{align*}
+\end{proof}
+
+
+\begin{lemma}\label{lemma:r_bar}
+  The average of residuals can be upper bounded
+  \begin{align*}
+    \tfrac{1}{T}\tsum_{t=0}^{T-1} \norm{\bar{\rr}^{(t+1)}}_2^2
+    \le &
+    \tfrac{1-\rho}{|\gset|}\tfrac{1}{T}\tsum_{t=0}^{T-1} \tsum_{i\in\gset} \norm{\eta{\mm}_i^{(t+1)} + {\rr}_i^{(t)}}_2^2.
+  \end{align*}
+\end{lemma}
+\begin{proof}
+  We can expand the average residual $\bar{\rr}^{(t+1)}$ and apply \eqref{eq:rho}
+  \begin{align*}
+    \norm{\bar{\rr}^{(t+1)}}_2^2
+    =   & \norm{\eta\bar{\mm}^{(t+1)} + \bar{\rr}^{(t)} - \bar{\vv}^{(t+1)}  }_2^2                        \\
+    \le &
+    \tfrac{1}{|\gset|}\tsum_{i\in\gset} \norm{\eta{\mm}_i^{(t+1)} + {\rr}_i^{(t)} - {\vv}_i^{(t+1)} }_2^2 \\
+    \le &
+    \tfrac{1-\rho}{|\gset|}\tsum_{i\in\gset} \norm{\eta{\mm}_i^{(t+1)} + {\rr}_i^{(t)}}_2^2.
+  \end{align*}
+  Then average the residual over time $t$ yields
+  \begin{align*}
+    \tfrac{1}{T}\tsum_{t=0}^{T-1} \norm{\bar{\rr}^{(t+1)}}_2^2
+    \le &
+    \tfrac{1-\rho}{|\gset|}\tfrac{1}{T}\tsum_{t=0}^{T-1} \tsum_{i\in\gset} \norm{\eta{\mm}_i^{(t+1)} + {\rr}_i^{(t)}}_2^2.
+  \end{align*}
+\end{proof}
+
+\begin{lemma}
+  \label{lemma:etam_r}
+  The sum of momentum and residual can be upper bounded by
+  \begin{align*}
+    \tfrac{1}{T|\gset|} \tsum_{t=0}^{T-1} \tsum_{i\in\gset} \norm{\eta\mm_i^{(t+1)} +\rr_i^{(t)} }_2^2
+    \le & \tfrac{6\eta^2}{\rho^2} \tfrac{1}{T|\gset|}  \tsum_{t=0}^{T-1} \tsum_{i\in\gset}\norm{\mm_i^{(t+1)} }_2^2.
+  \end{align*}
+\end{lemma}
+\begin{proof}
+  For $t>0$, we have that
+  \begin{align*}
+    \norm{\eta\mm_i^{(t+1)} +\rr_i^{(t)} }_2^2
+    \stackrel{\eqref{eq:young}}{\le} &
+    (1+\tfrac{\rho}{2})\norm{\rr_i^{(t)} }_2^2
+    +(1+\tfrac{2}{\rho})\norm{\eta\mm_i^{(t+1)} }_2^2                                                               \\
+    =                                & (1+\tfrac{\rho}{2})\norm{\eta\mm_i^{(t)} + \rr_i^{(t-1)} - \vv_i^{(t)} }_2^2
+    +(1+\tfrac{2}{\rho})\norm{\eta\mm_i^{(t+1)} }_2^2                                                               \\
+    \le                              & (1-\tfrac{\rho}{2})\norm{\eta\mm_i^{(t)} + \rr_i^{(t-1)} }_2^2
+    +\tfrac{3}{\rho}\norm{\eta\mm_i^{(t+1)} }_2^2.
+  \end{align*}
+  Average $t$ from 0 to $T-1$
+  \begin{align*}
+    \tfrac{1}{T} \tsum_{t=0}^{T-1} \norm{\eta\mm_i^{(t+1)} +\rr_i^{(t)} }_2^2
+    \le & (1-\tfrac{\rho}{2}) \tfrac{1}{T} \tsum_{t=1}^{T-1} \norm{\eta\mm_i^{(t)} +\rr_i^{(t-1)} }_2^2
+    + \tfrac{3}{\rho} \tfrac{1}{T} \tsum_{t=1}^{T-1}\norm{\eta\mm_i^{(t+1)} }_2^2                       \\
+        & + \tfrac{1}{T} \norm{\eta\mm_i^{(1)}}_2^2                                                     \\
+    \le & (1-\tfrac{\rho}{2}) \tfrac{1}{T} \tsum_{t=0}^{T-1} \norm{\eta\mm_i^{(t+1)} +\rr_i^{(t)} }_2^2
+    + \tfrac{3}{\rho} \tfrac{1}{T} \tsum_{t=0}^{T-1}\norm{\eta\mm_i^{(t+1)} }_2^2                       \\
+    \le & \tfrac{6\eta^2}{\rho^2} \tfrac{1}{T} \tsum_{t=0}^{T-1}\norm{\mm_i^{(t+1)} }_2^2.
+  \end{align*}
+\end{proof}
+
+\begin{lemma}%[lemma:mi]
+  \label{lemma:mi}
+  Uniform upper bound of momentum is
+  \begin{align*}
+    \tfrac{1}{T|\gset|}\tsum_{t=0}^{T-1} \tsum_{i\in\gset}
+    \E\norm{\mm_i^{(t+1)}}_2^2
+    \le &
+    \tfrac{2}{T}\tsum_{t=1}^{T-1} \norm{\nabla f(\xx^{(t)}) }_2^2
+    +  2  \zeta^2
+    + \alpha\sigma^2                                             \\
+        & + \tfrac{1}{\alpha T}(2\norm{\nabla f(\xx^{(0)}) }_2^2
+    + 2 \zeta^2
+    + \sigma^2).
+  \end{align*}
+\end{lemma}
+\begin{proof}
+  For $t>0$, expand  $\E\norm{\mm_i^{(t+1)}}_2^2$ with
+  \begin{align*}
+    \E\norm{\mm_i^{(t+1)}}_2^2
+    =   & \norm{\E\mm_i^{(t+1)}}_2^2 +  \E\norm{\mm_i^{(t+1)} - \E \mm_i^{(t+1)} }_2^2
+    \leq \norm{\E\mm_i^{(t+1)}}_2^2 + \alpha^2\sigma^2                                 \\
+    =   & \norm{(1-\alpha)\mm_i^{(t)} + \alpha \E\gg_i^{(t)}  }_2^2 + \alpha^2\sigma^2 \\
+    \le & (1-\alpha) \norm{\mm_i^{(t)} }_2^2
+    +  \alpha  \norm{\E\gg_i^{(t)}  }_2^2
+    + \alpha^2\sigma^2                                                                 \\
+    \le & (1-\alpha) \norm{\mm_i^{(t)} }_2^2
+    +  2\alpha  \norm{\nabla f(\xx^{(t)}) }_2^2
+    +  2\alpha  \norm{\E\gg_i^{(t)} - \nabla f(\xx^{(t)}) }_2^2
+    + \alpha^2\sigma^2                                                                 \\
+    \le & (1-\alpha) \norm{\mm_i^{(t)} }_2^2
+    +  2\alpha  \norm{\nabla f(\xx^{(t)}) }_2^2
+    +  2\alpha  \zeta^2
+    + \alpha^2\sigma^2.
+  \end{align*}
+  The case for $t=0$, we have
+  \begin{align*}
+    \E\norm{\mm_i^{(1)}}_2^2= & \E\norm{\gg_i^{(0)}}_2^2 = \norm{\E\gg_i^{(0)}}_2^2+\E\norm{\gg_i^{(0)} - \E\gg_i^{(0)}}_2^2 \leq \norm{\nabla f_i(\xx^{(0)}) }_2^2
+    + \sigma^2                                                                                                                                                      \\
+    \le                       & 2\norm{\nabla f(\xx^{(0)}) }_2^2
+    + 2 \zeta^2
+    + \sigma^2.
+  \end{align*}
+  Then the averaged version is that
+  \begin{align*}
+    \tfrac{1}{T}\tsum_{t=0}^{T-1}
+    \E\norm{\mm_i^{(t+1)}}_2^2
+    \le &
+    (1-\alpha) \tfrac{1}{T}\tsum_{t=1}^{T-1} \norm{\mm_i^{(t)} }_2^2
+    +  2\alpha \tfrac{1}{T}\tsum_{t=1}^{T-1} \norm{\nabla f(\xx^{(t)}) }_2^2 \\
+        &
+    +  2\alpha  \zeta^2
+    + \alpha^2\sigma^2
+    + \tfrac{1}{T}(2\norm{\nabla f(\xx^{(0)}) }_2^2
+    + 2 \zeta^2
+    + \sigma^2)                                                              \\
+    \le &
+    (1-\alpha) \tfrac{1}{T}\tsum_{t=0}^{T-1} \norm{\mm_i^{(t+1)} }_2^2
+    +  2\alpha \tfrac{1}{T}\tsum_{t=1}^{T-1} \norm{\nabla f(\xx^{(t)}) }_2^2 \\
+        &
+    +  2\alpha  \zeta^2
+    + \alpha^2\sigma^2
+    + \tfrac{1}{T}(2\norm{\nabla f(\xx^{(0)}) }_2^2
+    + 2 \zeta^2
+    + \sigma^2)                                                              \\
+    \le &
+    \tfrac{2}{T}\tsum_{t=1}^{T-1} \norm{\nabla f(\xx^{(t)}) }_2^2
+    +  2  \zeta^2
+    + \alpha\sigma^2                                                         \\
+        & + \tfrac{1}{\alpha T}(2\norm{\nabla f(\xx^{(0)}) }_2^2
+    + 2 \zeta^2
+    + \sigma^2).
+  \end{align*}
+\end{proof}
+
+
+\subsection{[Draft] New proof attempt}
+
+
+Good workers that are $\tau$-close to the clipping center ($0$ at the moment):
+\[
+  \gcset = \gcset^{t+1} = \{i \in \gset : \norm{v_i}_2 \leq \tau \}
+\]
+Good workers that are far:
+\[
+  \gfset = \gfset^{t+1} = \{i \in \gset : \norm{v_i}_2 > \tau \}
+\]
+Similarly $\bcset$ and $\bfset$ for bad workers that are close and far respectively.
+
+We decompose the error accordingly using convexity of the function $\norm{\cdot}_2^2$:
+\[
+  \cE^{t+1}
+  \le
+  \tfrac{|\gcset|}{n} \cE_\gcset^{t+1}
+  + \tfrac{|\gfset|}{n} \cE_\gfset^{t+1}
+  + \tfrac{|\bcset|}{n} \cE_\bcset^{t+1}
+  + \tfrac{|\bfset|}{n} \cE_\bfset^{t+1}
+\]
+
+
+\paragraph*{Error from the far bad workers}
+
+Use the same argument as in the first Byzantine proof \comment{We can't do much better I guess}
+
+\begin{align*}
+  \tfrac{1}{T} \tsum_{t=0}^{T-1} \cE_\bfset^{t+1}
+   & =
+  \tfrac{1}{T} \tsum_{t=0}^{T-1} \norm*{ \tfrac{1}{\eta |\bfset|} \tsum_{i\in\bfset} c_i^{t+1} - \nabla f(x^t) }_2^2
+  \le
+  \ldots
+  \le
+  \tfrac{2\tau^2}{\eta^2} + \tfrac{2}{T} \tsum_{t=0}^{T-1} \norm*{ \nabla f(x^t) }_2^2
+\end{align*}
+
+
+\paragraph*{Error from the close bad workers}
+
+~\comment{With clipping to $0$ I don't think we can really do better than the same bound as the far bad workers}
+
+\begin{align*}
+  \cE_\bcset^{t+1}
+   & =
+  \norm*{ \tfrac{1}{\eta |\bcset|} \tsum_{i\in\bcset} c_i^{t+1} - \nabla f(x^t) }_2^2
+\end{align*}
+
+
+\paragraph*{Error from the far good workers}
+
+Use the same argument as in the first Byzantine proof
+
+\begin{align*}
+  \cE_\gfset^{t+1}
+   & =
+  \norm*{ \tfrac{1}{\eta |\gfset|} \tsum_{i\in\gfset} c_i^{t+1} - \nabla f(x^t) }_2^2
+  \le
+  \ldots
+  \\
+   & \le
+  \tfrac{6}{\eta^2}\tfrac{1}{T|\gfset|}\tsum_{t=0}^{T-1}\tsum_{i\in\gfset} \tfrac{1}{\tau^2} \norm*{ \vv_i^{(t+1)}  }_2^4 \\
+   & +
+  \tfrac{72(1-\rho)}{\rho^2} \left(\tfrac{2}{T}\tsum_{t=1}^{T-1} \norm{\nabla f(\xx^{(t)}) }_2^2
+  +  2  \zeta^2
+  + \alpha\sigma^2 \right)                                                                                                \\
+   & +
+  \tfrac{72(1-\rho)}{\rho^2} \tfrac{1}{\alpha T}(2\norm{\nabla f(\xx^{(0)}) }_2^2
+  + 2 \zeta^2 + \sigma^2)                                                                                                 \\
+   & +
+  \tfrac{6(1-\alpha)^2L^2\eta^2}{\alpha^2T} \tsum_{t=0}^{T-1}
+  \norm{ \tfrac{1}{n} \tsum_{i=1}^n \cc_i^{(t)} }_2^2
+  + \tfrac{2\alpha\sigma^2}{|\gset|} + \tfrac{2\sigma^2}{ \alpha  T|\gset|}.
+\end{align*}
+
+
+\paragraph*{Error from the close good workers}
+
+For close good workers $c_i^{t+1} = v_i^{t+1}$ so
+
+\begin{align*}
+  \cE_\gcset^{t+1}
+   & =
+  \norm*{ \tfrac{1}{\eta |\gcset|} \tsum_{i\in\gcset} v_i^{t+1} - \nabla f(x^t) }_2^2
+  \\
+   & \le
+  \tfrac{3}{\eta^2} \underbrace{ \norm*{ \tfrac{1}{|\gcset|} \tsum_{i\in\gcset} v_i^{t+1} - \eta m_i^{t+1} - r_i^t }_2^2 }_{=: A}
+  + 3 \underbrace{ \norm*{ \tfrac{1}{|\gcset|} \tsum_{i\in\gcset} m_i^{t+1} - \nabla f(x^t)}_2^2 }_{=: B}
+  + \tfrac{3}{\eta^2} \underbrace{ \norm*{ \tfrac{1}{|\gcset|} \tsum_{i\in\gcset} r_i^t }_2^2 }_{=: C}
+\end{align*}
+
+For $B$ by lemma \ref{lemma:gm} we have
+\begin{align*}
+  \tfrac{1}{T} \tsum_{t=0}^{T-1} \E B
+   & \le
+  \tfrac{3(1-\alpha)^2 L^2\eta^2}{\alpha^2T} \tsum_{t=0}^{T-1}
+  \norm{ \tfrac{1}{n} \tsum_{i=1}^n \cc_i^{(t)} }_2^2
+  + \tfrac{\alpha\sigma^2}{|\gset|} + \tfrac{\sigma^2}{\alpha T|\gset|}.
+\end{align*}
+
+
+For $A$ and $C$ we have
+\begin{align*}
+  A + C
+  =
+  \norm*{ \tfrac{1}{|\gcset|} \tsum_{i\in\gcset} r_i^{t+1} }_2^2
+  + \norm*{ \tfrac{1}{|\gcset|} \tsum_{i\in\gcset} r_i^{t} }_2^2
+  \le
+  \tfrac{1}{|\gcset|} \tsum_{i\in\gcset} \norm*{ r_i^{t+1} }_2^2 + \tfrac{1}{|\gcset|} \tsum_{i\in\gcset} \norm*{ r_i^{t} }_2^2
+\end{align*}
+hence (because $r_i^0 = 0$)
+\begin{align*}
+  \tfrac{1}{T} \tsum_{t=0}^{T-1} (A + C)
+   & \le
+  \tfrac{2}{T} \tsum_{t=0}^{T-1} \tfrac{1}{|\gcset|} \tsum_{i\in\gcset} \norm*{ r_i^{t+1} }_2^2
+  \le
+  \tfrac{2}{T} \tsum_{t=0}^{T-1} \tfrac{1 - \rho}{|\gcset|} \tsum_{i\in\gcset} \norm*{ \eta m_i^{t+1} + r_i^t }_2^2
+\end{align*}
+where we used the compressor property for the second inequality.
+Then by lemma~\ref{lemma:etam_r}
+\begin{align*}
+  \tfrac{1}{T} \tsum_{t=0}^{T-1} (A+C)
+   & \le
+  \tfrac{12\eta^2(1-\rho)}{\rho^2} \tfrac{1}{T|\gcset|}  \tsum_{t=0}^{T-1} \tsum_{i\in\gcset}\norm{\mm_i^{(t+1)} }_2^2
+\end{align*}
+Using lemma~\ref{lemma:mi} we deduce
+\begin{align*}
+  \tfrac{1}{T} \tsum_{t=0}^{T-1} \E (A+C)
+   & \le
+  \tfrac{12\eta^2(1-\rho)}{\rho^2}
+  \left(
+  \tfrac{2}{T}\tsum_{t=1}^{T-1} \norm{\nabla f(\xx^{(t)}) }_2^2
+  +  2  \zeta^2
+  + \alpha\sigma^2
+  + \tfrac{1}{\alpha T}(2\norm{\nabla f(\xx^{(0)}) }_2^2
+    + 2 \zeta^2
+    + \sigma^2)
+  \right)
+\end{align*}
+
+To sum up
+\begin{align*}
+  \tfrac{1}{T} \tsum_{t=0}^{T-1} \cE_\gcset^{t+1}
+  \le
+   & \tfrac{36(1-\rho)}{\rho^2}
+  \left(
+  \tfrac{2}{T}\tsum_{t=1}^{T-1} \norm{\nabla f(\xx^{(t)}) }_2^2
+  +  2  \zeta^2
+  + \alpha\sigma^2
+  + \tfrac{1}{\alpha T}(2\norm{\nabla f(\xx^{(0)}) }_2^2
+    + 2 \zeta^2
+    + \sigma^2)
+  \right)
+  \\
+   & + \tfrac{9(1-\alpha)^2 L^2\eta^2}{\alpha^2T} \tsum_{t=0}^{T-1}
+  \norm{ \tfrac{1}{n} \tsum_{i=1}^n \cc_i^{(t)} }_2^2
+  + \tfrac{3\alpha\sigma^2}{|\gset|} + \tfrac{3\sigma^2}{\alpha T|\gset|}
+\end{align*}
+
+
+\paragraph*{Determining the clipping radius $\tau$}
+
+
+Thanks to the above we have
+\begin{align*}
+  \frac{1}{T} \sum_{t=0}^{T-1} \mathcal E^{t+1}
+  \le
+  \ldots + \frac{1}{n \eta^2}
+  \left(
+  \frac{1}{\tau^2} \, \frac{6}{T} \sum_{t=0}^{T-1} \sum_{i \in \gfset} \norm{\vv_i^{t+1}}^4 + \tau^2 \, 2 |\bset|
+  \right)
+\end{align*}
+where ``$\ldots$'' does not depend on the clipping radius $\tau$.
+
+Improvement over the previous proof strategy: $\sum_{i\in\gfset}$ instead of $\sum_{i\in\gset}$
+
+\end{document}

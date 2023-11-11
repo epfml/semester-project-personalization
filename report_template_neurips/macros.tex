@@ -1,0 +1,430 @@
+% !TEX root = mom-robust.tex
+
+\newtheorem{lem}{Lemma}
+
+\newtheorem{thm}{Theorem}
+\newenvironment{thmbis}[1]
+{\renewcommand{\thethm}{\ref{#1}$'$}%
+    \addtocounter{thm}{-1}%
+    \begin{thm}}
+        {\end{thm}}
+
+
+
+\newcommand\tagthis{\addtocounter{equation}{1}\tag{\theequation}}
+
+% Paired notation: usage explained below using \inp as an example:
+% \inp just prints standard sized brackets and \inp* uses \left...\right to scale
+% the brackets to enclose the material.
+% Often \inp* will produce brackets that are too big, and manual scaling can be
+% provided by \[\big], \[\Big], \[\bigg], \[\Bigg]
+\DeclarePairedDelimiterX{\inp}[2]{\langle}{\rangle}{#1, #2}
+%\DeclarePairedDelimiterX{\abs}[1]{\lvert}{\rvert}{#1}
+\DeclarePairedDelimiterX{\norm}[1]{\lVert}{\rVert}{#1}
+\DeclarePairedDelimiterX{\cbr}[1]{\{}{\}}{#1} % curly bracket
+\DeclarePairedDelimiterX{\rbr}[1]{(}{)}{#1} % round bracket
+\DeclarePairedDelimiterX{\sbr}[1]{[}{]}{#1} % square bracket
+
+\providecommand{\refLE}[1]{\ensuremath{\stackrel{(\ref{#1})}{\leq}}}
+\providecommand{\refEQ}[1]{\ensuremath{\stackrel{(\ref{#1})}{=}}}
+\providecommand{\refGE}[1]{\ensuremath{\stackrel{(\ref{#1})}{\geq}}}
+\providecommand{\refID}[1]{\ensuremath{\stackrel{(\ref{#1})}{\equiv}}}
+
+\providecommand{\mgeq}{\succeq}
+\providecommand{\mleq}{\preceq}
+
+\providecommand{\divides}{\mid} % a divides b means there exists integer c such that b = ac
+\providecommand{\tsum}{\textstyle\sum} % smaller sum symbols---displays as if inline
+% basic sets
+\providecommand{\R}{\mathbb{R}} % Reals
+\providecommand{\real}{\mathbb{R}} % Reals
+\providecommand{\N}{\mathbb{N}} % Naturals
+
+% random variables
+\DeclarePairedDelimiter{\paren}{(}{)}
+\DeclareMathOperator{\expect}{\mathbb{E}}
+\DeclareMathOperator{\E}{\expect}
+\newcommand{\expec}[2][\!]{\mathbb{\expect}_{#1\!}\left[#2\right]}\DeclareMathOperator{\ind}{\mathbb{1}}
+\DeclareMathOperator{\prob}{Pr}
+
+
+% \sign on its own prints sign, additionally takes sign*[y]{x} and the output
+% is sign(x), where y and star control the size of the rbr.
+\DeclareMathOperator{\sgn}{sign}
+\makeatletter
+\def\sign{\@ifnextchar*{\@sgnargscaled}{\@ifnextchar[{\sgnargscaleas}{\@ifnextchar{\bgroup}{\@sgnarg}{\sgn} }}}
+\def\@sgnarg#1{\sgn\rbr{#1}}
+\def\@sgnargscaled#1{\sgn\rbr*{#1}}
+\def\@sgnargscaleas[#1]#2{\sgn\rbr[#1]{#2}}
+\makeatother
+
+\DeclareMathOperator*{\argmin}{arg\,min}
+\DeclareMathOperator*{\argmax}{arg\,max}
+\DeclareMathOperator*{\supp}{supp}
+\DeclareMathOperator*{\diag}{diag}
+\DeclareMathOperator*{\Tr}{Tr}
+\DeclareMathOperator*{\lin}{lin}
+
+
+% bold vectors
+\providecommand{\0}{\bm{0}}
+\providecommand{\1}{\bm{1}}
+\providecommand{\alphav}{\bm{\alpha}}
+\renewcommand{\aa}{\bm{a}}
+\providecommand{\bb}{\bm{b}}
+\providecommand{\cc}{\bm{c}}
+\providecommand{\dd}{\bm{d}}
+\providecommand{\ee}{\bm{e}}
+\providecommand{\ff}{\bm{f}}
+\let\ggg\gg
+\renewcommand{\gg}{\bm{g}}
+\providecommand{\hh}{\bm{h}}
+\providecommand{\ii}{\bm{i}}
+\providecommand{\jj}{\bm{j}}
+\providecommand{\kk}{\bm{k}}
+\let\lll\ll
+\renewcommand{\ll}{\bm{l}}
+\providecommand{\mm}{\bm{m}}
+\providecommand{\nn}{\bm{n}}
+\providecommand{\oo}{\bm{o}}
+\providecommand{\pp}{\bm{p}}
+\providecommand{\qq}{\bm{q}}
+\providecommand{\rr}{\bm{r}}
+\let\sss\ss
+\renewcommand{\ss}{\bm{s}}
+\providecommand{\tt}{\bm{t}}
+\providecommand{\uu}{\bm{u}}
+\providecommand{\vv}{\bm{v}}
+\providecommand{\ww}{\bm{w}}
+\providecommand{\xx}{\bm{x}}
+\providecommand{\yy}{\bm{y}}
+\providecommand{\zz}{\bm{z}}
+\providecommand{\thth}{\bm{\theta}}
+\newcommand{\bxi}{\boldsymbol{\xi}}
+\newcommand{\bmu}{\boldsymbol{\mu}}
+\newcommand{\muv}{\bmu}
+
+% tilde vectors
+\providecommand{\txx}{\tilde\xx}
+\providecommand{\tgg}{\tilde\gg}
+\newcommand{\Var}{\mathrm{Var}}
+\newcommand{\standarderror}{\mathrm{SE}}
+\newcommand{\Cov}{\mathrm{Cov}}
+\newcommand{\KL}{D_{\mathrm{KL}}}
+\def\mSigma{{\bm{\Sigma}}}
+
+
+% bold matrices
+\providecommand{\mA}{\bm{A}}
+\providecommand{\mB}{\bm{B}}
+\providecommand{\mC}{\bm{C}}
+\providecommand{\mD}{\bm{D}}
+\providecommand{\mE}{\bm{E}}
+\providecommand{\mF}{\bm{F}}
+\providecommand{\mG}{\bm{G}}
+\providecommand{\mH}{\bm{H}}
+\providecommand{\mI}{\bm{I}}
+\providecommand{\mJ}{\bm{J}}
+\providecommand{\mK}{\bm{K}}
+\providecommand{\mL}{\bm{L}}
+\providecommand{\mM}{\bm{M}}
+\providecommand{\mN}{\bm{N}}
+\providecommand{\mO}{\bm{O}}
+\providecommand{\mP}{\bm{P}}
+\providecommand{\mQ}{\bm{Q}}
+\providecommand{\mR}{\bm{R}}
+\providecommand{\mS}{\bm{S}}
+\providecommand{\mT}{\bm{T}}
+\providecommand{\mU}{\bm{U}}
+\providecommand{\mV}{\bm{V}}
+\providecommand{\mW}{\bm{W}}
+\providecommand{\mX}{\bm{X}}
+\providecommand{\mY}{\bm{Y}}
+\providecommand{\mZ}{\bm{Z}}
+\providecommand{\mLambda}{\bm{\Lambda}}
+
+% calligraphic
+\providecommand{\cA}{\mathcal{A}}
+\providecommand{\cB}{\mathcal{B}}
+\providecommand{\cC}{\mathcal{C}}
+\providecommand{\cD}{\mathcal{D}}
+\providecommand{\cE}{\mathcal{E}}
+\providecommand{\cF}{\mathcal{F}}
+\providecommand{\cG}{\mathcal{G}}
+\providecommand{\cH}{\mathcal{H}}
+\providecommand{\cII}{\mathcal{H}}
+\providecommand{\cJ}{\mathcal{J}}
+\providecommand{\cK}{\mathcal{K}}
+\providecommand{\cL}{\mathcal{L}}
+\providecommand{\cM}{\mathcal{M}}
+\providecommand{\cN}{\mathcal{N}}
+\providecommand{\cO}{\mathcal{O}}
+\providecommand{\cP}{\mathcal{P}}
+\providecommand{\cQ}{\mathcal{Q}}
+\providecommand{\cR}{\mathcal{R}}
+\providecommand{\cS}{\mathcal{S}}
+\providecommand{\cT}{\mathcal{T}}
+\providecommand{\cU}{\mathcal{U}}
+\providecommand{\cV}{\mathcal{V}}
+\providecommand{\cX}{\mathcal{X}}
+\providecommand{\cY}{\mathcal{Y}}
+\providecommand{\cW}{\mathcal{W}}
+\providecommand{\cZ}{\mathcal{Z}}
+
+\providecommand{\error}{\mathcal{E}}
+\providecommand{\ce}{\mathcal{C}}
+\providecommand{\tce}{\Xi}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%% THEOREMS
+%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% Theorems, propositions, observations, corollaries, conjectures
+% , and hypotheses all have the same counter.
+% Lemmas, claims, remarks, examples and properties have same counter.
+% Definitions. notations and Assumptions have same alphabetic counter.
+
+\newcommand{\QED}{\hfill $\square$}
+\newtheorem{theorem}{Theorem}
+\renewcommand*{\thetheorem}{\Roman{theorem}}
+%{\theoremstyle{break}\newtheorem{thm}[theorem]{Theorem}}
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{observation}[theorem]{Observation}
+\newtheorem{corollary}[theorem]{Corollary}
+\newtheorem{hypothesis}[theorem]{Hypothesis}
+\newtheorem{conjecture}[theorem]{Conjecture}
+\newtheorem{claim}[theorem]{Claim}
+
+
+\newtheorem{lemma}{Lemma}
+\renewcommand*{\thelemma}{\arabic{lemma}}
+\newtheorem{remark}[lemma]{Remark}
+\newtheorem{example}[lemma]{Example}
+\newtheorem{property}[lemma]{Property}
+
+\newtheorem{definition}{Definition}
+\renewcommand*{\thedefinition}{\Alph{definition}}
+\newtheorem{convention}[definition]{Convention}
+\newtheorem{notation}[definition]{Notation}
+
+% ---------------------------------------------------------------------------- %
+%                  Example: Customizing Assumption environment                 %
+% ---------------------------------------------------------------------------- %
+% Define a new style
+\newtheoremstyle{shortassumptionstyle}%
+{}% space above
+{}% space below
+{\itshape}% body font
+{0.5em}% indent amount
+{\bfseries}% theorem head font
+{.}% punctuation after theorem head
+{0.5em}% space after theorem head
+{(\thmname{#1}\thmnumber{#2}) \thmnote{#3}}% theorem head spec
+\theoremstyle{shortassumptionstyle}
+\newtheorem{assumption}{A}
+\renewcommand*{\theassumption}{\arabic{assumption}}
+\crefname{assumption}{}{}
+\Crefname{assumption}{}{}
+\creflabelformat{assumption}{(#2A#1#3)}
+\theoremstyle{plain}
+
+
+\newcommand{\eg}{e.g.}
+\newcommand{\ie}{i.e.}
+\newcommand{\iid}{i.i.d.}
+\newcommand{\cf}{cf.}
+
+\newcommand{\h}{\widehat}
+\newcommand{\ti}{\widetilde}
+\newcommand{\ov}{\overline}
+\newcommand{\wt}{\widetilde}
+\newcommand{\set}[2][]{#1 \{ #2 #1 \} }
+\newcommand{\ignore}[1]{}
+
+\newcommand{\tgamma}{\tilde \gamma}
+\newcommand{\true}{\texttt{true}}
+\newcommand{\false}{\texttt{false}}
+\newcommand{\e}{\epsilon}
+% \usepackage[colorlinks=true,linkcolor=blue]{hyperref}
+% \usepackage[capitalize,noabbrev]{cleveref}
+
+\definecolor{color1}{RGB}{228,26,28}
+\definecolor{color2}{RGB}{55,126,184}
+\definecolor{color3}{RGB}{77,175,74}
+\definecolor{color4}{RGB}{152,78,163}
+\definecolor{color5}{RGB}{255,127,0}
+
+% Check marks
+\usepackage{pifont}
+\newcommand{\cmark}{\ding{51}}%
+\newcommand{\xmark}{\ding{55}}%
+\newcommand{\yes}{$\checkmark$}%
+\newcommand{\no}{$\times$}%
+
+\newcommand{\minus}{\scalebox{0.8}{$-$}}
+\newcommand{\plus}{\scalebox{0.6}{$+$}}
+
+% custom item in enumerate with reference
+\makeatletter
+\newcommand{\myitem}[1]{%
+    \item[\textbf{(#1)}]\protected@edef\@currentlabel{#1}%
+}
+\makeatother
+
+
+% code to highlight parts of algorithm taken from https://tex.stackexchange.com/questions/386272/how-to-highlight-sections-of-my-code-in-algorithm
+\usetikzlibrary{fit,calc}
+%define a marking command
+%define a marking command
+\newcommand*{\tikzmk}[1]{\tikz[remember picture,overlay,] \node (#1) {};}
+%define a boxing command, argument = color of box
+\newcommand{\boxit}[1]{\tikz[remember picture,overlay]{\node[yshift=3pt,fill=#1,opacity=.25,fit={($(A)+(-0.2*\linewidth - 3pt,3pt)$)($(B)+(0.75*\linewidth - 5pt,-2pt)$)}] {};}}
+
+\newcommand{\blockfed}[1]{\tikz[remember picture,overlay]{\node[yshift=3pt,fill=#1,opacity=.25,fit={($(A)+(-0.1*\linewidth - 3pt,3pt)$)($(B)+(0.88*\linewidth - 5pt,-2pt)$)}] {};}}
+
+\newcommand{\highlight}[1]{\tikz[remember picture,overlay]{\node[yshift=3pt,fill=#1,opacity=.25,fit={($(A)+(2pt,6pt)$)($(B)+(-3pt,-7pt)$)}] {};}}
+%define some colors according to algorithm parts (or any other method you like)
+\colorlet{worker}{red!40}
+\newcommand{\speedup}[1]{{\color{gray}(\ifdim #1 pt > 0.3pt #1\else $< #1$\fi{}$\times$)}}
+% \newcommand{\speedup}[1]{{\color{lightgray} (#1 \times)}}
+% \colorlet{worker}{cyan!60}
+
+
+% Random variables
+\def\reta{{\textnormal{$\eta$}}}
+\def\ra{{\textnormal{a}}}
+\def\rb{{\textnormal{b}}}
+\def\rc{{\textnormal{c}}}
+\def\rd{{\textnormal{d}}}
+\def\re{{\textnormal{e}}}
+\def\rf{{\textnormal{f}}}
+\def\rg{{\textnormal{g}}}
+\def\rh{{\textnormal{h}}}
+\def\ri{{\textnormal{i}}}
+\def\rj{{\textnormal{j}}}
+\def\rk{{\textnormal{k}}}
+\def\rl{{\textnormal{l}}}
+% rm is already a command, just don't name any random variables m
+\def\rn{{\textnormal{n}}}
+\def\ro{{\textnormal{o}}}
+\def\rp{{\textnormal{p}}}
+\def\rq{{\textnormal{q}}}
+\def\rr{{\textnormal{r}}}
+\def\rs{{\textnormal{s}}}
+\def\rt{{\textnormal{t}}}
+\def\ru{{\textnormal{u}}}
+\def\rv{{\textnormal{v}}}
+\def\rw{{\textnormal{w}}}
+\def\rx{{\textnormal{x}}}
+\def\ry{{\textnormal{y}}}
+\def\rz{{\textnormal{z}}}
+
+
+% Random vectors
+\def\rvepsilon{{\mathbf{\epsilon}}}
+\def\rvtheta{{\mathbf{\theta}}}
+\def\rva{{\mathbf{a}}}
+\def\rvb{{\mathbf{b}}}
+\def\rvc{{\mathbf{c}}}
+\def\rvd{{\mathbf{d}}}
+\def\rve{{\mathbf{e}}}
+\def\rvf{{\mathbf{f}}}
+\def\rvg{{\mathbf{g}}}
+\def\rvh{{\mathbf{h}}}
+\def\rvu{{\mathbf{i}}}
+\def\rvj{{\mathbf{j}}}
+\def\rvk{{\mathbf{k}}}
+\def\rvl{{\mathbf{l}}}
+\def\rvm{{\mathbf{m}}}
+\def\rvn{{\mathbf{n}}}
+\def\rvo{{\mathbf{o}}}
+\def\rvp{{\mathbf{p}}}
+\def\rvq{{\mathbf{q}}}
+\def\rvr{{\mathbf{r}}}
+\def\rvs{{\mathbf{s}}}
+\def\rvt{{\mathbf{t}}}
+\def\rvu{{\mathbf{u}}}
+\def\rvv{{\mathbf{v}}}
+\def\rvw{{\mathbf{w}}}
+\def\rvx{{\mathbf{x}}}
+\def\rvy{{\mathbf{y}}}
+\def\rvz{{\mathbf{z}}}
+
+% Random matrices
+\def\rmA{{\mathbf{A}}}
+\def\rmB{{\mathbf{B}}}
+\def\rmC{{\mathbf{C}}}
+\def\rmD{{\mathbf{D}}}
+\def\rmE{{\mathbf{E}}}
+\def\rmF{{\mathbf{F}}}
+\def\rmG{{\mathbf{G}}}
+\def\rmH{{\mathbf{H}}}
+\def\rmI{{\mathbf{I}}}
+\def\rmJ{{\mathbf{J}}}
+\def\rmK{{\mathbf{K}}}
+\def\rmL{{\mathbf{L}}}
+\def\rmM{{\mathbf{M}}}
+\def\rmN{{\mathbf{N}}}
+\def\rmO{{\mathbf{O}}}
+\def\rmP{{\mathbf{P}}}
+\def\rmQ{{\mathbf{Q}}}
+\def\rmR{{\mathbf{R}}}
+\def\rmS{{\mathbf{S}}}
+\def\rmT{{\mathbf{T}}}
+\def\rmU{{\mathbf{U}}}
+\def\rmV{{\mathbf{V}}}
+\def\rmW{{\mathbf{W}}}
+\def\rmX{{\mathbf{X}}}
+\def\rmY{{\mathbf{Y}}}
+\def\rmZ{{\mathbf{Z}}}
+
+% Sets
+\def\sA{{\mathbb{A}}}
+\def\sB{{\mathbb{B}}}
+\def\sC{{\mathbb{C}}}
+\def\sD{{\mathbb{D}}}
+% Don't use a set called E, because this would be the same as our symbol
+% for expectation.
+\def\sF{{\mathbb{F}}}
+\def\sG{{\mathbb{G}}}
+\def\sH{{\mathbb{H}}}
+\def\sI{{\mathbb{I}}}
+\def\sJ{{\mathbb{J}}}
+\def\sK{{\mathbb{K}}}
+\def\sL{{\mathbb{L}}}
+\def\sM{{\mathbb{M}}}
+\def\sN{{\mathbb{N}}}
+\def\sO{{\mathbb{O}}}
+\def\sP{{\mathbb{P}}}
+\def\sQ{{\mathbb{Q}}}
+\def\sR{{\mathbb{R}}}
+\def\sS{{\mathbb{S}}}
+\def\sT{{\mathbb{T}}}
+\def\sU{{\mathbb{U}}}
+\def\sV{{\mathbb{V}}}
+\def\sW{{\mathbb{W}}}
+\def\sX{{\mathbb{X}}}
+\def\sY{{\mathbb{Y}}}
+\def\sZ{{\mathbb{Z}}}
+
+
+\renewcommand{\epsilon}{\varepsilon}
+
+\newcommand{\tofix}[1]{{\color{red} (ToFix: #1)}}
+\newcommand{\todo}[1]{{\color{blue} (Todo: #1)}}
+\newcommand{\comment}[1]{{\color{brown} (Djian: #1)}}
+
+% Set-theoretic difference
+\newcommand\rsetminus{\mathbin{\mathpalette\rsetminusaux\relax}}
+\newcommand\rsetminusaux[2]{\mspace{-4mu}
+  \raisebox{\rsmraise{#1}\depth}{\rotatebox[origin=c]{-20}{$#1\smallsetminus$}}
+ \mspace{-4mu}
+}
+\newcommand\rsmraise[1]{%
+  \ifx#1\displaystyle .8\else
+    \ifx#1\textstyle .8\else
+      \ifx#1\scriptstyle .6\else
+        .45%
+      \fi
+    \fi
+  \fi}
