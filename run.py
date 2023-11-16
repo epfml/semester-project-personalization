@@ -1,5 +1,4 @@
 import wandb
-import torch
 from clients import ClientGroup
 from model import Net
 from train import Train
@@ -12,7 +11,7 @@ if __name__ == '__main__':
     parser.add_argument('--bs_train', type=int, default=16)
     parser.add_argument('--bs_test', type=int, default=1000)
     parser.add_argument('--lr', type=float, default=0.05)
-    parser.add_argument('--epochs',  type=int, default=10)
+    parser.add_argument('--epochs',  type=int, default=20)
     parser.add_argument('--workers', type=int, nargs='+', default=[2, -1])
     parser.add_argument('--shared_layers', type=int, nargs='+', default=[1, 1, 1, 1, 0, 0, 0, 0])
     parser.add_argument('--wandb',type=bool, default=False)
@@ -33,7 +32,7 @@ if __name__ == '__main__':
     if wandb_run:
         wandb.init(
             project="personalization",
-            name = "FMNIST[2 -1], bs=16, shared, all CL (w/o similar params)",
+            name = "FMNIST[2 -1], bs=16, shared, all CL (lr=0.1)",
             # track hyperparameters and run metadata
             config={
                 "learning_rate": learning_rate,
@@ -49,7 +48,7 @@ if __name__ == '__main__':
     for i in range(len(workers)):
         flipped = workers[i] < 0
         worker_groups.append(ClientGroup(abs(workers[i]), Net, batch_size_train, batch_size_test,
-                            dataset= Dataset('fashion_MNIST', batch_size_train, batch_size_test, flipped=flipped)))
+                            dataset= Dataset('fashion_MNIST', batch_size_train, batch_size_test, flipped=flipped, seed = i)))
 
 
     train = Train(worker_groups, learning_rate, shared_layers=shared_layers)

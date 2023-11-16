@@ -1,13 +1,15 @@
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
-from statistics import mean
 from tqdm import tqdm
 import wandb
-import matplotlib.pyplot as plt
 import math
-import numpy as np
 class Train:
+    """
+    This is a class that implements different training methods
+    groups: We know the grouping of all clients, which means that they have the same dataset to train on
+    shared_layer: this is a mask of layers that are shared between all the clients. Other layers are only shared within each group
+    """
+
     def __init__(self, groups, learning_rate, shared_layers = None):
         self.test_grad = None
         self.groups = groups
@@ -25,6 +27,7 @@ class Train:
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     def find_average_parameters(self, averaging_models):
+        """finds the average of the model parameters for the models given in the input"""
         params = list()
         for i in range(len(averaging_models)):
             for j, param in enumerate(averaging_models[i].parameters()):
@@ -39,6 +42,7 @@ class Train:
         return params
 
     def find_average_gradients(self, averaging_models):
+        """finds the average of the model gradients for the models given in the input"""
         aggregated_grads = list()
         for i, model in enumerate(averaging_models):
             for j, grad in enumerate(model.get_gradients()):
@@ -58,13 +62,20 @@ class Train:
         return aggregated_grads
 
     def gradient_averaging(self):
+        """
+        the simplest federated learning aggregation. Just average the gradients of all models (for all layers)
+        and update the models based on that (we don't use shared layers here)
+        """
         aggregated_grads = self.find_average_gradients(self.models)
         for model in self.models:
             model.update(aggregated_grads, self.learning_rate)
 
 
     def average_layer_parameters(self):
-
+        """
+        instead of aggregating gradient, each model, updates itself based on local gradient, and then we aggregate
+        model parameters (we don't use shared layers here)
+        """
         for model in self.models:
             model.update(model.get_gradients(), self.learning_rate)
 
@@ -89,6 +100,10 @@ class Train:
 
 
     def shared_model_weighted_gradient_averaging(self):
+        """
+        We average the gradient of shared layers for all the models. For other layers we only average within their groups.
+        The aggregated gradient of private layers is weighted by the number of clients in each group
+        """
         average_grad_all = self.find_average_gradients(self.models)
 
         for model in self.models:
@@ -99,7 +114,6 @@ class Train:
         # return
         for group in self.groups:
             group_rate = len(group.clients)/len(self.models)
-            # print(group_rate)
             models = list()
             for client in group.clients:
                 models.append(client.model)
@@ -112,8 +126,8 @@ class Train:
                         param.data -= self.learning_rate * group_rate * average_grad_group[i]
 
 
-        # breakpoint()
     def first_client_evaluation(self):
+        """evaluating accuracy and loss based on the first client model and dataset"""
         self.models[0].eval()
         test_loss = 0
         correct = 0
@@ -130,12 +144,7 @@ class Train:
         print(test_acc)
 
     def shared_model_evaluation(self):
-        # print('checking params:')
-        # for i in range(len(self.models)):
-        #     params = self.models[i].parameters()
-        #     param = next(params, None)
-        #     print('model ', i , ":", param.data[1,0,:3,:3])
-
+        """evaluating accuracy and loss based on average of accuracy and loss of all agents"""
         global_loss = 0
         global_acc = 0
         for i, model in enumerate(self.models):
@@ -161,10 +170,14 @@ class Train:
         wandb.log({"accuracy": global_acc/len(self.models), "loss": global_loss/len(self.models)})
 
     def train(self, aggregator, evaluate, epochs):
+        """
+        main training loop
+        aggregator: one of the methods for aggregating gradients/parameters and updating the models
+        evaluate: one of the methods for evaluating the models
+        """
 
-
-        # if aggregator == self.shared_model_weighted_gradient_averaging:
-        #     self.average_layer_parameters()
+        if aggregator == self.shared_model_weighted_gradient_averaging:
+            self.average_layer_parameters()
 
         cnt = 0
         for epoch in tqdm(range(epochs)):
@@ -181,7 +194,6 @@ class Train:
 
                 aggregator()
 
-            # evaluate()
                 cnt += 1
                 if cnt % 250 == 0:
                     evaluate()
