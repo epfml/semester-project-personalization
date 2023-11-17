@@ -32,7 +32,7 @@ if __name__ == '__main__':
     if wandb_run:
         wandb.init(
             project="personalization",
-            name = "FMNIST[2 -1], bs=16, shared, all CL (lr=0.1)",
+            name = "FMNIST[1 -1 -1 -1], bs=16, shared, all CL (20eps, w/o ratio normalization)",
             # track hyperparameters and run metadata
             config={
                 "learning_rate": learning_rate,

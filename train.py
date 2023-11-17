@@ -14,12 +14,16 @@ class Train:
         self.test_grad = None
         self.groups = groups
         self.learning_rate = learning_rate
-        self.train_loaders, self.test_loaders, self.models = list(), list(), list()
+        self.train_loaders, self.val_loaders, self.test_loaders = list(), list(), list()
+        self.models, self.clients = list(), list()
+
         for group in self.groups:
             for client in group.clients:
+                self.clients.append(client)
                 self.models.append(client.model)
                 self.train_loaders.append(client.dataset.train_loader)
                 self.test_loaders.append(client.dataset.test_loader)
+                self.val_loaders.append(client.dataset.val_loader)
 
         if not shared_layers is None:
             self.shared_layers = shared_layers
@@ -113,7 +117,8 @@ class Train:
 
         # return
         for group in self.groups:
-            group_rate = len(group.clients)/len(self.models)
+            # group_rate = len(group.clients)/len(self.models)
+            group_rate = 1
             models = list()
             for client in group.clients:
                 models.append(client.model)
@@ -126,48 +131,38 @@ class Train:
                         param.data -= self.learning_rate * group_rate * average_grad_group[i]
 
 
-    def first_client_evaluation(self):
+    def one_client_evaluation(self, model, test_loader):
         """evaluating accuracy and loss based on the first client model and dataset"""
-        self.models[0].eval()
+        model.zero_grad()
+        model.eval()
         test_loss = 0
         correct = 0
         with torch.no_grad():
-            for data, target in self.test_loaders[0]:
-                output = self.models[0](data.to(self.device))
+            for data, target in test_loader:
+                output = model(data.to(self.device))
                 test_loss += F.nll_loss(output, target.to(self.device), reduction='sum').item()
                 pred = output.data.max(1, keepdim=True)[1]
                 correct += pred.eq(target.to(self.device).data.view_as(pred)).sum()
         test_loss /= len(self.test_loaders[0].dataset)
         test_acc = 100. * correct / len(self.test_loaders[0].dataset)
 
-        wandb.log({"accuracy": test_acc, "loss": test_loss})
-        print(test_acc)
+        # wandb.log({"accuracy": test_acc, "loss": test_loss})
+        print(test_acc, test_loss)
+        return test_acc, test_loss
 
     def shared_model_evaluation(self):
         """evaluating accuracy and loss based on average of accuracy and loss of all agents"""
         global_loss = 0
         global_acc = 0
         for i, model in enumerate(self.models):
-            model.zero_grad()
-            model.eval()
-            test_loss = 0
-            correct = 0
-            with torch.no_grad():
-                for data, target in self.test_loaders[i]:
-                    output = model(data.to(self.device))
-                    test_loss += F.nll_loss(output, target.to(self.device), reduction='sum').item()
-                    pred = output.data.max(1, keepdim=True)[1]
-                    correct += pred.eq(target.to(self.device).data.view_as(pred)).sum()
-
-            test_loss /= len(self.test_loaders[i].dataset)
-            test_acc = 100. * correct / len(self.test_loaders[i].dataset)
-            print('client ', i, 'acc: ', test_acc, 'loss: ', test_loss)
+            test_acc, test_loss = self.one_client_evaluation(model, self.test_loaders[i])
             global_loss += test_loss
             global_acc += test_acc
-        if math.isnan(global_loss / len(self.models)):
-            breakpoint()
+
         print('global acc:', global_acc/len(self.models), 'global loss: ', global_loss/len(self.models))
         wandb.log({"accuracy": global_acc/len(self.models), "loss": global_loss/len(self.models)})
+
+        return global_acc, global_loss
 
     def train(self, aggregator, evaluate, epochs):
         """
@@ -196,4 +191,7 @@ class Train:
 
                 cnt += 1
                 if cnt % 250 == 0:
-                    evaluate()
+                    if evaluate == self.one_client_evaluation:
+                        evaluate(self.models[0], self.test_loaders[0])
+                    else:
+                        evaluate()

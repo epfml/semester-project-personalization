@@ -4,7 +4,7 @@ import torch.nn.functional as F
 import random
 
 class Net(nn.Module):
-    def __init__(self):
+    def __init__(self, client):
         """initializing a simple NN with 2 convolutional layers and 2 fully connected layers"""
         super(Net, self).__init__()
         torch.autograd.set_detect_anomaly(True)
@@ -14,6 +14,7 @@ class Net(nn.Module):
         self.fc1 = nn.Linear(320, 50)
         self.fc2 = nn.Linear(50, 10)
         self.criterion = nn.CrossEntropyLoss()
+        self.client = client
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 

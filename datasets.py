@@ -1,7 +1,7 @@
 import torch
 import torchvision
 import numpy as np
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset, DataLoader, random_split
 
 class ConvexDataset(Dataset):
     def __init__(self, data, labels):
@@ -31,27 +31,36 @@ class Dataset:
         self.flipped = flipped
         self.seed = seed
         dataset_to_use = getattr(self, self.name)
-        self.train_loader, self.test_loader = dataset_to_use()
+        self.train_loader, self.val_loader, self.test_loader = dataset_to_use()
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 
     def flip_labels(self, train_loader, test_loader):
         """flips the labels of the dataset by using seed"""
-        train_loader.dataset.targets = (train_loader.dataset.targets + self.seed) % 10
+        train_loader.targets = (train_loader.targets + self.seed) % 10
         test_loader.dataset.targets =  (test_loader.dataset.targets + self.seed) % 10
-        print(train_loader.dataset.targets)
+        # print(train_loader.dataset.targets)
         return train_loader, test_loader
+
+    def split_train(self, train_data):
+        # val_size = int(0.2*len(train_data))
+        val_size = 1
+        train_size = len(train_data) - val_size
+        train_data, val_data = random_split(train_data, [train_size, val_size])
+        train_loader = DataLoader(train_data, batch_size=self.batch_size_train, shuffle=True)
+        val_loader = DataLoader(val_data, batch_size=self.batch_size_test, shuffle=True)
+        return train_loader, val_loader
+
 
     def fashion_MNIST(self):
         """loads fashion MNIST"""
-        train_loader = torch.utils.data.DataLoader(
-            torchvision.datasets.FashionMNIST('/mloraw1/hashemi/', train=True, download=True,
+        train_data = torchvision.datasets.FashionMNIST('/mloraw1/hashemi/', train=True, download=True,
                                               transform=torchvision.transforms.Compose([
                                                   torchvision.transforms.ToTensor(),
                                                   torchvision.transforms.Normalize(
                                                       (0.5,), (0.5,))
-                                              ])),
-            batch_size=self.batch_size_train, shuffle=True)
+                                              ]))
+
 
         test_loader = torch.utils.data.DataLoader(
             torchvision.datasets.FashionMNIST('/mloraw1/hashemi/', train=False, download=True,
@@ -62,22 +71,23 @@ class Dataset:
                                               ])),
             batch_size=self.batch_size_test, shuffle=True)
 
-        if self.flipped:
-            train_loader, test_loader = self.flip_labels(train_loader, test_loader)
+        # print(type(train_data.dataset), type(test_loader.dataset))
 
-        return train_loader, test_loader
+        if self.flipped:
+            train_loader, test_loader = self.flip_labels(train_data, test_loader)
+
+        train_loader, val_loader = self.split_train(train_data)
+        return train_loader, val_loader, test_loader
 
 
     def MNIST(self):
         """loads MNIST"""
-        train_loader = DataLoader(
-            torchvision.datasets.MNIST('/mloraw1/hashemi/', train=True, download=True,
+        train_data = torchvision.datasets.MNIST('/mloraw1/hashemi/', train=True, download=True,
                                               transform=torchvision.transforms.Compose([
                                                   torchvision.transforms.ToTensor(),
                                                   torchvision.transforms.Normalize(
                                                       (0.1307,), (0.3081,))
-                                              ])),
-            batch_size= self.batch_size_train, shuffle=True)
+                                              ]))
 
         test_loader = DataLoader(
             torchvision.datasets.MNIST('/mloraw1/hashemi/', train=False, download=True,
@@ -89,9 +99,9 @@ class Dataset:
             batch_size= self.batch_size_test, shuffle=True)
 
         if self.flipped:
-            train_loader, test_loader = self.flip_labels(train_loader, test_loader)
-
-        return train_loader, test_loader
+            train_loader, test_loader = self.flip_labels(train_data, test_loader)
+        train_loader, val_loader = self.split_train(train_data)
+        return train_loader, val_loader, test_loader
 
     # def convex_dataset(self, minimas, batch_size_train, batch_size_test):
     #     np.random.seed(0)

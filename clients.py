@@ -16,7 +16,7 @@ class ClientGroup:
         self.clients = []
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         for i in range(self.clients_num):
-            self.clients.append(Client(self, model().to(self.device)))
+            self.clients.append(Client(self, model))
 
 
 
@@ -27,9 +27,10 @@ class Client:
         group: the group that the client belongs to
         model: the model that the client uses
         """
-
+        self.neighbors = list()
         self.group = group
-        self.model = model
+        self.model = model(self).to(self.group.device)
         group_dataset = self.group.dataset
+        print(group_dataset.flipped)
         self.dataset = Dataset(group_dataset.name, group_dataset.batch_size_train,
-                               group_dataset.batch_size_test, group_dataset.flipped)
+                               group_dataset.batch_size_test, group_dataset.flipped, group_dataset.seed)
