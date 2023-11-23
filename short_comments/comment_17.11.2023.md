@@ -43,18 +43,15 @@ Note that the second term is a hard constraint that $x_{i,s} = x_{j,s}$ if $w_{i
 **Algorithms that optimize this objective**: A draft of the algorithm can be devised as follows:
 - Optimizing $\lambda_{ij}$ means we synch shared layers within a group. (still use GD)
 - Optimizing $X$ using SGD as usual.
-- Optimizing $W$. We can consider an easier case first, i.e. $\min_{W\in \{0,1\}^{n(n-1)/2} } F(W)$.
-    - Approach 1: Submodular Optimization
-        - (**how can we view this as a submodular optimization problem**) Let's imagine in the very beginning, the $W$ is an identity matrix, then $F(W)$ is the sum of $n$ objectives that optimized independently. The loss should be very small. When we add an edge to the graph (say $i$, $j$), then $F(W)$ becomes evaluating $[(x_{i,s}+x_{j,s})/2, x_{i,p}]$ on $f_i$ and $[(x_{i,s}+x_{j,s})/2, x_{j,p}]$ on $f_j$  and evaluate $f_k(x_k)$ otherwise. (e.g., $f_i(x_i^\star)+f_j(x_j^\star)\le f_i(x^\star)+f_j(x^\star)$)
+- Optimizing $W$. We can consider an easier case first, e.g. $\min_{W\in \{0,1\}^{n(n-1)/2} } F(W)$.
+    - Approach 1: Submodular Optimization (we consider modeling and next week we consider algorithms)
+        - (**how can we view this as a submodular optimization problem**) Let's assume $\{f_i\}$ are convex and for non-convex $f_i$ we use $\|\nabla f_i(x_i)\|_2^2$ inside $F$ instead. Let's imagine in the very beginning, the $W$ is an identity matrix, then $F(W)$ is the sum of $n$ objectives that optimized independently. The loss is the smallest. When we add an edge to the graph (say $i$, $j$), then $F(W)$ becomes evaluating $[(x_{i,s}+x_{j,s})/2, x_{i,p}]$ on $f_i$ and $[(x_{i,s}+x_{j,s})/2, x_{j,p}]$ on $f_j$  and evaluate $f_k(x_k)$ otherwise. (e.g., $f_i(x_i^\star)+f_j(x_j^\star)\le f_i(x^\star)+f_j(x^\star)$)
             - If $i$ and $j$ belong to the same groundtruth group (meaning they can simultaneously reach minimizer or stationary point), then the loss do not increase*. 
             - If $i$ and $j$ belong to two different groundtruth groups, then the loss will increase a lot. 
 
-            In other words, adding edges will make the loss non-decrease. It may also satisfy the diminishing returns. (TODO: need rigorous proof)
+            In other words, adding edges will make the loss non-decrease. It may also satisfy the diminishing returns: suppose there are two groundtruth groups with 1 group of size n-1 identical nodes and 1 group of size 1 (say node A), then adding node A to a smaller group will increase loss more than adding A to a larger group.  (TODO: need rigorous proof)
         - (TODO: how is this related to the Matroid Rank Functions?)
-        - (**algorithm?**). We can use the greedy algorithm to optimize this objective. 
-            - Start with an empty graph.
-            - At each step, we add an edge that minimizes the marginal gain of the objective.
-            - Stop when the objective increases.
+        - (**algorithm?**). 
     - Approach 2: Spectral Partitioning of the graph.
         - See the description below. (we can use the gradient of shared layers as the representation of each node)
         - TODO: (Is it easy to analyze?)
