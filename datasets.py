@@ -43,8 +43,8 @@ class Dataset:
         return train_loader, test_loader
 
     def split_train(self, train_data):
-        # val_size = int(0.2*len(train_data))
-        val_size = 1
+        val_size = int(0.2*len(train_data))
+        # val_size = 1
         train_size = len(train_data) - val_size
         train_data, val_data = random_split(train_data, [train_size, val_size])
         train_loader = DataLoader(train_data, batch_size=self.batch_size_train, shuffle=True)

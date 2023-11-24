@@ -4,7 +4,7 @@ from model import Net
 from train import Train
 from datasets import Dataset
 import argparse
-
+from grouping import Grouping
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -17,6 +17,8 @@ if __name__ == '__main__':
     parser.add_argument('--wandb',type=bool, default=False)
     parser.add_argument('--train_method', type=str, default='shared_model_weighted_gradient_averaging')
     parser.add_argument('--eval_method', type=str, default='shared_model_evaluation')
+    parser.add_argument('--grouping_method', type=str, default='average_loss_grouping')
+    parser.add_argument('--known_grouping', type=bool, default=True)
 
     args = parser.parse_args()
     batch_size_train = args.bs_train
@@ -28,11 +30,13 @@ if __name__ == '__main__':
     wandb_run = args.wandb
     train_method = args.train_method
     eval_method = args.eval_method
-
+    known_grouping = args.known_grouping
+    grouping_method = args.grouping_method
+    print('known grouping?', known_grouping)
     if wandb_run:
         wandb.init(
             project="personalization",
-            name = "FMNIST[1 -1 -1 -1], bs=16, shared, all CL (20eps, w/o ratio normalization)",
+            name = "FMNIST[2 -1], AvgAcc > MinAcc Grouping, bs=16, shared, all CL",
             # track hyperparameters and run metadata
             config={
                 "learning_rate": learning_rate,
@@ -51,5 +55,5 @@ if __name__ == '__main__':
                             dataset= Dataset('fashion_MNIST', batch_size_train, batch_size_test, flipped=flipped, seed = i)))
 
 
-    train = Train(worker_groups, learning_rate, shared_layers=shared_layers)
-    train.train(getattr(train, train_method), getattr(train, eval_method), n_epochs)
+    train = Train(worker_groups, learning_rate, known_grouping, shared_layers=shared_layers)
+    train.train(getattr(train, train_method), getattr(train, eval_method), n_epochs, getattr(Grouping(), grouping_method))

@@ -10,10 +10,11 @@ class Train:
     shared_layer: this is a mask of layers that are shared between all the clients. Other layers are only shared within each group
     """
 
-    def __init__(self, groups, learning_rate, shared_layers = None):
+    def __init__(self, groups, learning_rate, known_grouping, shared_layers = None):
         self.test_grad = None
         self.groups = groups
         self.learning_rate = learning_rate
+        self.known_grouping = known_grouping
         self.train_loaders, self.val_loaders, self.test_loaders = list(), list(), list()
         self.models, self.clients = list(), list()
 
@@ -117,8 +118,8 @@ class Train:
 
         # return
         for group in self.groups:
-            # group_rate = len(group.clients)/len(self.models)
-            group_rate = 1
+            group_rate = len(group.clients)/len(self.models)
+            # group_rate = 1
             models = list()
             for client in group.clients:
                 models.append(client.model)
@@ -137,25 +138,49 @@ class Train:
         model.eval()
         test_loss = 0
         correct = 0
+        flag = False
         with torch.no_grad():
             for data, target in test_loader:
                 output = model(data.to(self.device))
                 test_loss += F.nll_loss(output, target.to(self.device), reduction='sum').item()
                 pred = output.data.max(1, keepdim=True)[1]
                 correct += pred.eq(target.to(self.device).data.view_as(pred)).sum()
-        test_loss /= len(self.test_loaders[0].dataset)
-        test_acc = 100. * correct / len(self.test_loaders[0].dataset)
+                # if not flag:
+                #     flag = True
+                #     print('loss and acc:', test_loss, correct/1000)
+                    # print('output head', output[:5, :])
+                    # print('target head', target[:5])
+        test_loss /= len(test_loader.dataset)
+        test_acc = 100. * correct / len(test_loader.dataset)
 
         # wandb.log({"accuracy": test_acc, "loss": test_loss})
-        print(test_acc, test_loss)
+        # print('accuracy and loss', test_acc, test_loss)
         return test_acc, test_loss
+
+
+    def neighbors_gradient_averaging(self):
+        average_grad_all = self.find_average_gradients(self.models)
+
+        for model in self.models:
+            for i, param in enumerate(model.parameters()):
+                if self.shared_layers[i] == 1:
+                    param.data -= self.learning_rate * average_grad_all[i]
+
+        for client in self.clients:
+            average_grad_neighbors = self.find_average_gradients(client.neighbor_models)
+            group_rate = len(client.neighbor_models) / len(self.models)
+            for i, param in enumerate(client.model.parameters()):
+                if self.shared_layers[i] == 0:
+                    param.data -= self.learning_rate * group_rate * average_grad_neighbors[i]
+
+
 
     def shared_model_evaluation(self):
         """evaluating accuracy and loss based on average of accuracy and loss of all agents"""
         global_loss = 0
         global_acc = 0
-        for i, model in enumerate(self.models):
-            test_acc, test_loss = self.one_client_evaluation(model, self.test_loaders[i])
+        for i, client in enumerate(self.clients):
+            test_acc, test_loss = self.one_client_evaluation(client.model, client.dataset.test_loader)
             global_loss += test_loss
             global_acc += test_acc
 
@@ -164,7 +189,7 @@ class Train:
 
         return global_acc, global_loss
 
-    def train(self, aggregator, evaluate, epochs):
+    def train(self, aggregator, evaluate, epochs, grouping_method = None):
         """
         main training loop
         aggregator: one of the methods for aggregating gradients/parameters and updating the models
@@ -175,6 +200,7 @@ class Train:
             self.average_layer_parameters()
 
         cnt = 0
+        right_grouping = 0
         for epoch in tqdm(range(epochs)):
             for batches in zip(*self.train_loaders):
                 model_ind = 0
@@ -187,10 +213,31 @@ class Train:
                     loss.backward()
                     model_ind += 1
 
+
+                if not self.known_grouping:
+                    # if cnt == 0:
+                    #     self.clients[0].neighbor_models.append(self.clients[0].model)
+                    #     self.clients[1].neighbor_models.append(self.clients[1].model)
+                    #     self.clients[2].neighbor_models.append(self.clients[2].model)
+
+                        # self.clients[0].neighbor_models.append(self.clients[1].model)
+                        # self.clients[1].neighbor_models.append(self.clients[0].model)
+
+                    if cnt % 50 == 0:
+                        grouping_method(self.clients, self)
+
+                        print('neighbors:')
+                        for client in self.clients:
+                            print(client.neighbor_inds)
+
+                        if self.clients[0].neighbor_inds == [1] and self.clients[1].neighbor_inds == [0]:
+                            right_grouping += 1
+
                 aggregator()
 
                 cnt += 1
                 if cnt % 250 == 0:
+                    print('right grouping percentage:', right_grouping/cnt)
                     if evaluate == self.one_client_evaluation:
                         evaluate(self.models[0], self.test_loaders[0])
                     else:

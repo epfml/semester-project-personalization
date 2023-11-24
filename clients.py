@@ -27,7 +27,8 @@ class Client:
         group: the group that the client belongs to
         model: the model that the client uses
         """
-        self.neighbors = list()
+        self.neighbor_models = list()
+        self.neighbor_inds = list()
         self.group = group
         self.model = model(self).to(self.group.device)
         group_dataset = self.group.dataset

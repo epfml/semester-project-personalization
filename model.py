@@ -4,7 +4,7 @@ import torch.nn.functional as F
 import random
 
 class Net(nn.Module):
-    def __init__(self, client):
+    def __init__(self, client = None):
         """initializing a simple NN with 2 convolutional layers and 2 fully connected layers"""
         super(Net, self).__init__()
         torch.autograd.set_detect_anomaly(True)
@@ -48,5 +48,12 @@ class Net(nn.Module):
         for i, p in enumerate(self.parameters()):
             if gradients[i] is not None:
                 p.data -= learning_rate*gradients[i]
+
+        return
+
+    def set_params(self, params):
+        """set the model parameters to the given params"""
+        for i, p in enumerate(self.parameters()):
+            p.data = params[i].clone()
 
         return
