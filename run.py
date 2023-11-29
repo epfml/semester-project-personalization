@@ -11,6 +11,7 @@ if __name__ == '__main__':
     parser.add_argument('--bs_train', type=int, default=16)
     parser.add_argument('--bs_test', type=int, default=1000)
     parser.add_argument('--lr', type=float, default=0.05)
+    parser.add_argument('--lr_lambda', type=float, default=0.05)
     parser.add_argument('--epochs',  type=int, default=20)
     parser.add_argument('--workers', type=int, nargs='+', default=[2, -1])
     parser.add_argument('--shared_layers', type=int, nargs='+', default=[1, 1, 1, 1, 0, 0, 0, 0])
@@ -24,6 +25,7 @@ if __name__ == '__main__':
     batch_size_train = args.bs_train
     batch_size_test = args.bs_test
     learning_rate = args.lr
+    lr_lambda = args.lr_lambda
     n_epochs = args.epochs
     workers = args.workers
     shared_layers = args.shared_layers
@@ -32,11 +34,12 @@ if __name__ == '__main__':
     eval_method = args.eval_method
     known_grouping = args.known_grouping
     grouping_method = args.grouping_method
+
     print('known grouping?', known_grouping)
     if wandb_run:
         wandb.init(
             project="personalization",
-            name = "FMNIST[2 -1], AvgAcc > MinAcc Grouping, bs=16, shared, all CL",
+            name = "FMNIST[1 -1 -1 -1], frank-wolfe, bs=16, shared, all CL",
             # track hyperparameters and run metadata
             config={
                 "learning_rate": learning_rate,
@@ -49,11 +52,12 @@ if __name__ == '__main__':
 
     worker_groups = list()
 
+    cnt_clients = 0
     for i in range(len(workers)):
         flipped = workers[i] < 0
+        cnt_clients += abs(workers[i])
         worker_groups.append(ClientGroup(abs(workers[i]), Net, batch_size_train, batch_size_test,
                             dataset= Dataset('fashion_MNIST', batch_size_train, batch_size_test, flipped=flipped, seed = i)))
-
-
-    train = Train(worker_groups, learning_rate, known_grouping, shared_layers=shared_layers)
-    train.train(getattr(train, train_method), getattr(train, eval_method), n_epochs, getattr(Grouping(), grouping_method))
+    grouping = Grouping(cnt_clients, lr_lambda)
+    train = Train(worker_groups, learning_rate, known_grouping, shared_layers=shared_layers, grouping=grouping)
+    train.train(getattr(train, train_method), getattr(train, eval_method), n_epochs, getattr(grouping, grouping_method))

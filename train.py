@@ -2,6 +2,7 @@ import torch
 import torch.nn.functional as F
 from tqdm import tqdm
 import wandb
+from model import Net
 import math
 class Train:
     """
@@ -10,13 +11,14 @@ class Train:
     shared_layer: this is a mask of layers that are shared between all the clients. Other layers are only shared within each group
     """
 
-    def __init__(self, groups, learning_rate, known_grouping, shared_layers = None):
+    def __init__(self, groups, learning_rate, known_grouping, shared_layers = None, grouping = None):
         self.test_grad = None
         self.groups = groups
         self.learning_rate = learning_rate
         self.known_grouping = known_grouping
         self.train_loaders, self.val_loaders, self.test_loaders = list(), list(), list()
         self.models, self.clients = list(), list()
+        self.grouping = grouping
 
         for group in self.groups:
             for client in group.clients:
@@ -173,6 +175,31 @@ class Train:
                 if self.shared_layers[i] == 0:
                     param.data -= self.learning_rate * group_rate * average_grad_neighbors[i]
 
+    def frank_wolfe_gradient_update(self):
+
+        num_clients = len(self.clients)
+        cloned_models = list()
+
+        for client in self.clients:
+            cloned = Net()
+            cloned.load_state_dict(client.model.state_dict())
+            cloned_models.append(cloned.to(self.device))
+
+        for ind1, client1 in enumerate(self.clients):
+            for ind2, client2 in enumerate(self.clients):
+                if client1 != client2:
+                    models_params = (client1.model.parameters(), client2.model.parameters(),
+                                     cloned_models[ind1].parameters(), cloned_models[ind2].parameters())
+                    for param_ind, (p1, p2, p1_clone, p2_clone) in enumerate(zip(*models_params)):
+                        if self.shared_layers[param_ind] == 1:
+                            p1.data -= (self.learning_rate * self.grouping.w_lambda[ind1, ind2]
+                                        * self.grouping.w_adjacency[ind1, ind2] * 2 * (p1_clone.data - p2_clone.data))
+
+        for client in self.clients:
+            model = client.model
+            for i, p in enumerate(model.parameters()):
+                p.data -= 1/num_clients * self.learning_rate * p.grad
+
 
 
     def shared_model_evaluation(self):
@@ -223,15 +250,15 @@ class Train:
                         # self.clients[0].neighbor_models.append(self.clients[1].model)
                         # self.clients[1].neighbor_models.append(self.clients[0].model)
 
-                    if cnt % 50 == 0:
-                        grouping_method(self.clients, self)
+                    # if cnt % 50 == 0:
+                    grouping_method(self.clients, self)
 
-                        print('neighbors:')
-                        for client in self.clients:
-                            print(client.neighbor_inds)
-
-                        if self.clients[0].neighbor_inds == [1] and self.clients[1].neighbor_inds == [0]:
-                            right_grouping += 1
+                        # print('neighbors:')
+                        # for client in self.clients:
+                        #     print(client.neighbor_inds)
+                        #
+                        # if self.clients[0].neighbor_inds == [1] and self.clients[1].neighbor_inds == [0]:
+                        #     right_grouping += 1
 
                 aggregator()
 
