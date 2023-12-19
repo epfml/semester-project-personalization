@@ -18,12 +18,18 @@ class Train:
         self.known_grouping = known_grouping
         self.train_loaders, self.val_loaders, self.test_loaders = list(), list(), list()
         self.models, self.clients = list(), list()
+        self.initial_models = list()
         self.grouping = grouping
+        self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
         for group in self.groups:
             for client in group.clients:
                 self.clients.append(client)
                 self.models.append(client.model)
+
+                initial_model = Net()
+                initial_model.load_state_dict(client.model.state_dict())
+                self.initial_models.append(initial_model.to(self.device))
                 self.train_loaders.append(client.dataset.train_loader)
                 self.test_loaders.append(client.dataset.test_loader)
                 self.val_loaders.append(client.dataset.val_loader)
@@ -31,7 +37,6 @@ class Train:
         if not shared_layers is None:
             self.shared_layers = shared_layers
 
-        self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     def find_average_parameters(self, averaging_models):
         """finds the average of the model parameters for the models given in the input"""
@@ -176,7 +181,6 @@ class Train:
                     param.data -= self.learning_rate * group_rate * average_grad_neighbors[i]
 
     def frank_wolfe_gradient_update(self):
-
         num_clients = len(self.clients)
         cloned_models = list()
 
@@ -188,12 +192,24 @@ class Train:
         for ind1, client1 in enumerate(self.clients):
             for ind2, client2 in enumerate(self.clients):
                 if client1 != client2:
+                    less_ind = min(ind1, ind2)
+                    more_ind = max(ind1, ind2)
                     models_params = (client1.model.parameters(), client2.model.parameters(),
                                      cloned_models[ind1].parameters(), cloned_models[ind2].parameters())
+                    # unflatten_lambda = self.grouping.unflat_lambda(None if self.grouping.w_lambda is None else self.grouping.w_lambda[less_ind, more_ind], client1, self)
                     for param_ind, (p1, p2, p1_clone, p2_clone) in enumerate(zip(*models_params)):
                         if self.shared_layers[param_ind] == 1:
-                            p1.data -= (self.learning_rate * self.grouping.w_lambda[ind1, ind2]
-                                        * self.grouping.w_adjacency[ind1, ind2] * 2 * (p1_clone.data - p2_clone.data))
+
+                            p1.data -= (self.learning_rate * self.grouping.rho
+                                        * self.grouping.w_adjacency[less_ind, more_ind] * (p1_clone.data - p2_clone.data))
+                            # sign = 1 if ind1 < ind2 else -1
+                            # p1.data -= self.learning_rate * self.grouping.w_adjacency[less_ind, more_ind] * sign * unflatten_lambda[param_ind]
+
+
+        # for i, client in enumerate(self.clients):
+        #     for param_ind, (p1, cloned_p1, initial_p1) in enumerate(zip(client.model.parameters(), cloned_models[i].parameters(), self.initial_models[i].parameters())):
+        #         if self.shared_layers[param_ind] == 1:
+        #             p1.data -= 1 / num_clients * self.learning_rate * (cloned_p1.data - initial_p1.data)
 
         for client in self.clients:
             model = client.model
@@ -202,7 +218,7 @@ class Train:
 
 
 
-    def shared_model_evaluation(self):
+    def shared_model_evaluation(self, step):
         """evaluating accuracy and loss based on average of accuracy and loss of all agents"""
         global_loss = 0
         global_acc = 0
@@ -211,8 +227,18 @@ class Train:
             global_loss += test_loss
             global_acc += test_acc
 
-        print('global acc:', global_acc/len(self.models), 'global loss: ', global_loss/len(self.models))
-        wandb.log({"accuracy": global_acc/len(self.models), "loss": global_loss/len(self.models)})
+        loss_w = -self.grouping.alpha*torch.sum(self.grouping.w_adjacency)
+        loss_norm = 0
+        for i in range(len(self.clients)):
+            for j in range(i+1, len(self.clients)):
+                loss_norm += self.grouping.rho*self.grouping.norm_squared_differences[i, j]/2 * self.grouping.w_adjacency[i, j]
+
+        print('global acc:', global_acc / len(self.models), 'global loss: ', global_loss / len(self.models),
+              'loss norm:', loss_norm, 'loss w:', loss_w, 'norm diff:', self.grouping.norm_squared_differences)
+
+        wandb.log({"accuracy": global_acc / len(self.models), "loss": global_loss / len(self.models),
+                   "objective function": global_loss / len(self.models) + loss_norm + loss_w
+                   }, step=step)
 
         return global_acc, global_loss
 
@@ -242,17 +268,7 @@ class Train:
 
 
                 if not self.known_grouping:
-                    # if cnt == 0:
-                    #     self.clients[0].neighbor_models.append(self.clients[0].model)
-                    #     self.clients[1].neighbor_models.append(self.clients[1].model)
-                    #     self.clients[2].neighbor_models.append(self.clients[2].model)
-
-                        # self.clients[0].neighbor_models.append(self.clients[1].model)
-                        # self.clients[1].neighbor_models.append(self.clients[0].model)
-
-                    # if cnt % 50 == 0:
                     grouping_method(self.clients, self)
-
                         # print('neighbors:')
                         # for client in self.clients:
                         #     print(client.neighbor_inds)
@@ -268,4 +284,4 @@ class Train:
                     if evaluate == self.one_client_evaluation:
                         evaluate(self.models[0], self.test_loaders[0])
                     else:
-                        evaluate()
+                        evaluate(cnt)

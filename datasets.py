@@ -35,6 +35,7 @@ class Dataset:
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 
+
     def flip_labels(self, train_loader, test_loader):
         """flips the labels of the dataset by using seed"""
         train_loader.targets = (train_loader.targets + self.seed) % 10
