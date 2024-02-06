@@ -1,18 +1,8 @@
 import torch
 import torchvision
 import numpy as np
-from torch.utils.data import Dataset, DataLoader, random_split
-
-class ConvexDataset(Dataset):
-    def __init__(self, data, labels):
-        self.data = data
-        self.labels = labels
-
-    def __len__(self):
-        return len(self.data)
-
-    def __getitem__(self, idx):
-        return self.data[idx], self.labels[idx]
+from torch.utils.data import Dataset, DataLoader, random_split, Subset
+import torchvision.transforms as tt
 
 
 class Dataset:
@@ -24,7 +14,7 @@ class Dataset:
         flipped: if the labels should be flipped
         seed: we shift the labels by this seed, e.g. if seed = 1 then all the labels increase by 1 except for 9 which becomes 0
         """
-
+        self.original_dataset = None
         self.name = name
         self.batch_size_train = batch_size_train
         self.batch_size_test = batch_size_test
@@ -35,39 +25,84 @@ class Dataset:
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 
-
-    def flip_labels(self, train_loader, test_loader):
+    @staticmethod
+    def flip_labels(train_loader, test_loader, seed, num_labels=10):
         """flips the labels of the dataset by using seed"""
-        train_loader.targets = (train_loader.targets + self.seed) % 10
-        test_loader.dataset.targets =  (test_loader.dataset.targets + self.seed) % 10
+        # print('type is: ', type(train_loader.targets))
+        if isinstance(train_loader, list):
+            print('flipping labels. number of samples in underlying dataset is ', len(train_loader[0].dataset))
+            breakpoint()
+            trainloader[0].dataset.targets = (train_loader[0].dataset.targets + seed) % num_labels
+            # for i in range(len(train_loader)):
+            #     for _, labels in train_loader[i]:
+            #         labels.add_(seed).remainder_(num_labels)
+        else:
+            train_loader.targets = (train_loader.targets + seed) % num_labels
+
+        test_loader.dataset.targets =  (test_loader.dataset.targets + seed) % num_labels
         # print(train_loader.dataset.targets)
         return train_loader, test_loader
 
+
+    @staticmethod
+    def partition_train(dataset, num_clients, indices = None):
+        """partitions the dataset to num_clients partitions"""
+        train_data = dataset.train_loader.dataset
+        train_size = len(train_data)
+        print('len train data is:', train_size)
+        if indices is None:
+            indices = random_split(range(train_size), [int(train_size/num_clients) for i in range(num_clients)])
+        partitions = []
+        for i in range(num_clients):
+            partitions.append(DataLoader(Subset(train_data, indices[i]), batch_size= dataset.batch_size_train, shuffle = True))
+            print('indices are:', indices[i])
+
+
+
+        dataset.train_loader = partitions
+        # breakpoint()
+        return dataset
+
+    # @staticmethod
+    # def clone_trainset(dataset):
+    #     if isinstance(dataset.train_loader, list):
+    #         print('trainloader is actually a list')
+    #         for i in range(len(dataset.train_loader)):
+    #             dataset.train_loader[i] = DataLoader(dataset=dataset.train_loader[i].dataset,
+    #                                                  batch_size=dataset.batch_size_train, shuffle=False)
+    #     else:
+    #         dataset.train_loader = DataLoader(dataset=dataset.train_loader.dataset,
+    #                                                  batch_size=dataset.batch_size_train, shuffle=True)
+    #     print('after cloning, dataset is:', dataset)
+    #     return dataset
+
+
     def split_train(self, train_data):
-        val_size = int(0.2*len(train_data))
-        # val_size = 1
-        train_size = len(train_data) - val_size
-        train_data, val_data = random_split(train_data, [train_size, val_size])
-        train_loader = DataLoader(train_data, batch_size=self.batch_size_train, shuffle=True)
-        val_loader = DataLoader(val_data, batch_size=self.batch_size_test, shuffle=True)
+        #TODO: fix validation!
+        # val_size = int(0.2*len(train_data))
+        # # val_size = 1
+        # train_size = len(train_data) - val_size
+        # train_data, val_data = random_split(train_data, [train_size, val_size])
+        train_loader = DataLoader(train_data, batch_size=self.batch_size_train)
+        val_loader = DataLoader(train_data, batch_size=self.batch_size_test, shuffle=True)
         return train_loader, val_loader
 
 
     def fashion_MNIST(self):
         """loads fashion MNIST"""
-        train_data = torchvision.datasets.FashionMNIST('/mloraw1/hashemi/', train=True, download=True,
-                                              transform=torchvision.transforms.Compose([
-                                                  torchvision.transforms.ToTensor(),
-                                                  torchvision.transforms.Normalize(
+        train_data = torchvision.datasets.FashionMNIST('/mloscratch/homes/hashemi', train=True, download=True,
+                                              transform=tt.Compose([
+                                                  tt.ToTensor(),
+                                                  tt.Normalize(
                                                       (0.5,), (0.5,))
                                               ]))
 
 
         test_loader = torch.utils.data.DataLoader(
-            torchvision.datasets.FashionMNIST('/mloraw1/hashemi/', train=False, download=True,
-                                              transform=torchvision.transforms.Compose([
-                                                  torchvision.transforms.ToTensor(),
-                                                  torchvision.transforms.Normalize(
+            torchvision.datasets.FashionMNIST('/mloscratch/homes/hashemi', train=False, download=True,
+                                              transform=tt.Compose([
+                                                  tt.ToTensor(),
+                                                  tt.Normalize(
                                                       (0.5,), (0.5,))
                                               ])),
             batch_size=self.batch_size_test, shuffle=True)
@@ -75,53 +110,65 @@ class Dataset:
         # print(type(train_data.dataset), type(test_loader.dataset))
 
         if self.flipped:
-            train_loader, test_loader = self.flip_labels(train_data, test_loader)
+            train_loader, test_loader = Dataset.flip_labels(train_data, test_loader, self.seed, num_labels=10)
 
         train_loader, val_loader = self.split_train(train_data)
+
         return train_loader, val_loader, test_loader
 
 
     def MNIST(self):
         """loads MNIST"""
-        train_data = torchvision.datasets.MNIST('/mloraw1/hashemi/', train=True, download=True,
-                                              transform=torchvision.transforms.Compose([
-                                                  torchvision.transforms.ToTensor(),
-                                                  torchvision.transforms.Normalize(
+        train_data = torchvision.datasets.MNIST('/mloscratch/homes/hashemi', train=True, download=True,
+                                              transform=tt.Compose([
+                                                  tt.ToTensor(),
+                                                  tt.Normalize(
                                                       (0.1307,), (0.3081,))
                                               ]))
-
         test_loader = DataLoader(
-            torchvision.datasets.MNIST('/mloraw1/hashemi/', train=False, download=True,
-                                              transform=torchvision.transforms.Compose([
-                                                  torchvision.transforms.ToTensor(),
-                                                  torchvision.transforms.Normalize(
+            torchvision.datasets.MNIST('/mloscratch/homes/hashemi', train=False, download=True,
+                                              transform=tt.Compose([
+                                                  tt.ToTensor(),
+                                                  tt.Normalize(
                                                       (0.1307,), (0.3081,))
                                               ])),
             batch_size= self.batch_size_test, shuffle=True)
 
         if self.flipped:
-            train_loader, test_loader = self.flip_labels(train_data, test_loader)
+            train_loader, test_loader = Dataset.flip_labels(train_data, test_loader, self.seed, num_labels=10)
+
         train_loader, val_loader = self.split_train(train_data)
+
+
         return train_loader, val_loader, test_loader
 
-    # def convex_dataset(self, minimas, batch_size_train, batch_size_test):
-    #     np.random.seed(0)
-    #     X = 1000*np.random.rand(60000, len(minimas)) - 500
-    #     y = list()
-    #     for params in X:
-    #         label = 0
-    #         for i in range(len(params)):
-    #             label += 1/2 * (params[i] - minimas[i]) ** 2
-    #         y.append(label)
-    #
-    #     X = torch.tensor(X).to(self.device)
-    #     y = torch.tensor(y).to(self.device)
-    #
-    #     train_dataset = ConvexDataset(X[:50000], y[:50000])
-    #     test_dataset = ConvexDataset(X[50000:], y[50000:])
-    #
-    #     train_loader = DataLoader(train_dataset, batch_size=batch_size_train, shuffle=True)
-    #     test_loader = DataLoader(test_dataset, batch_size=batch_size_test, shuffle=True)
-    #
-    #     return train_loader, test_loader
+    def Cifar100(self):
+        """loads Cifar100"""
+        train_data = torchvision.datasets.CIFAR100('/mloscratch/homes/hashemi', train=True, download=True,
+                                              transform=tt.Compose([
+                                                  tt.RandomCrop(32, padding=4, padding_mode='reflect'),
+                                                  tt.RandomHorizontalFlip(),
+                                                  tt.ToTensor(),
+                                                  tt.Normalize(
+                                                      (0.5,), (0.5,))
+                                              ]))
+        train_data.targets = torch.tensor(train_data.targets)
 
+        test_loader = DataLoader(
+            torchvision.datasets.CIFAR100('/mloscratch/homes/hashemi', train=False, download=True,
+                                              transform=tt.Compose([
+                                                  tt.ToTensor(),
+                                                  tt.Normalize(
+                                                      (0.5,), (0.5,))
+                                              ])),
+            batch_size= self.batch_size_test, shuffle=True)
+        test_loader.dataset.targets = torch.tensor(test_loader.dataset.targets)
+        if self.flipped:
+            train_loader, test_loader = Dataset.flip_labels(train_data, test_loader, self.seed, num_labels=100)
+        # train_loader, val_loader = self.split_train(train_data)
+        # print('1 size:',len(train_loader.dataset))
+        val_loader = DataLoader(train_data, batch_size=self.batch_size_test, shuffle=True)
+        train_loader = DataLoader(train_data, batch_size=self.batch_size_train, shuffle=True)
+        print('2 size:', len(train_loader.dataset))
+
+        return train_loader, val_loader, test_loader

@@ -1,9 +1,11 @@
 import torch
+import torch.nn as nn
 import torch.nn.functional as F
 from tqdm import tqdm
 import wandb
-from model import Net
-import math
+from Models.smallnet import SmallNet
+
+
 class Train:
     """
     This is a class that implements different training methods
@@ -21,18 +23,20 @@ class Train:
         self.initial_models = list()
         self.grouping = grouping
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
+        self.train_losses = torch.zeros(len(self.models), device=self.device)
         for group in self.groups:
             for client in group.clients:
                 self.clients.append(client)
                 self.models.append(client.model)
 
-                initial_model = Net()
+                initial_model = client.group.model()
                 initial_model.load_state_dict(client.model.state_dict())
                 self.initial_models.append(initial_model.to(self.device))
                 self.train_loaders.append(client.dataset.train_loader)
                 self.test_loaders.append(client.dataset.test_loader)
                 self.val_loaders.append(client.dataset.val_loader)
+
+
 
         if not shared_layers is None:
             self.shared_layers = shared_layers
@@ -73,6 +77,27 @@ class Train:
 
         return aggregated_grads
 
+
+    def find_average_momentum(self, averaging_models):
+        """finds the average of the model gradients for the models given in the input"""
+        aggregated_momentum = list()
+        for i, model in enumerate(averaging_models):
+            for j, momentum in enumerate(model.get_momentum()):
+                # if j == 0:
+                #     pisrint(grad[0,0,0,:3])
+                if i == 0:
+                    aggregated_momentum.append(momentum.clone())
+                else:
+                    aggregated_momentum[j] += momentum.clone()
+
+        for i in range(len(aggregated_momentum)):
+            aggregated_momentum[i] /= len(averaging_models)
+            # if i == 0:
+            #     print('averaged: ', aggregated_grads[i][0, 0, 0,:3])
+
+
+        return aggregated_momentum
+
     def gradient_averaging(self):
         """
         the simplest federated learning aggregation. Just average the gradients of all models (for all layers)
@@ -94,7 +119,13 @@ class Train:
         average_params_all = self.find_average_parameters(self.models)
 
         for model in self.models:
+            cnt = 0
             for j, param in enumerate(model.parameters()):
+                # if isinstance(param, nn.Conv2d) or isinstance(param, nn.Linear) or isinstance(param, nn.BatchNorm2d):
+                #     cnt += 1
+                #     print('haha', cnt, param.data.shape)
+                # #     param.data = average_params_all[j]
+                # # print(j, param.data.shape)
                 if self.shared_layers[j] == 1:
                     param.data = average_params_all[j]
 
@@ -116,12 +147,12 @@ class Train:
         We average the gradient of shared layers for all the models. For other layers we only average within their groups.
         The aggregated gradient of private layers is weighted by the number of clients in each group
         """
-        average_grad_all = self.find_average_gradients(self.models)
+        average_momentum_all = self.find_average_gradients(self.models)
 
         for model in self.models:
             for i, param in enumerate(model.parameters()):
                 if self.shared_layers[i] == 1:
-                    param.data -= self.learning_rate * average_grad_all[i]
+                    param.data -= self.learning_rate * average_momentum_all[i]
 
         # return
         for group in self.groups:
@@ -131,12 +162,16 @@ class Train:
             for client in group.clients:
                 models.append(client.model)
 
-            average_grad_group = self.find_average_gradients(models)
+            average_momentum_group = self.find_average_gradients(models)
 
             for j , client in enumerate(group.clients):
                 for i, param in enumerate(client.model.parameters()):
                     if self.shared_layers[i] == 0:
-                        param.data -= self.learning_rate * group_rate * average_grad_group[i]
+                        param.data -= self.learning_rate * group_rate * average_momentum_group[i]
+
+
+        for model in self.models:
+            model.previous_momentum = model.get_momentum()
 
 
     def one_client_evaluation(self, model, test_loader):
@@ -146,20 +181,18 @@ class Train:
         test_loss = 0
         correct = 0
         flag = False
+
         with torch.no_grad():
             for data, target in test_loader:
                 output = model(data.to(self.device))
-                test_loss += F.nll_loss(output, target.to(self.device), reduction='sum').item()
+                test_loss += F.cross_entropy(output, target.to(self.device)).detach()
                 pred = output.data.max(1, keepdim=True)[1]
                 correct += pred.eq(target.to(self.device).data.view_as(pred)).sum()
-                # if not flag:
-                #     flag = True
-                #     print('loss and acc:', test_loss, correct/1000)
-                    # print('output head', output[:5, :])
-                    # print('target head', target[:5])
-        test_loss /= len(test_loader.dataset)
-        test_acc = 100. * correct / len(test_loader.dataset)
 
+
+        test_loss /= len(test_loader)
+        test_acc = 100. * correct / len(test_loader.dataset)
+        print('size of test set:', len(test_loader.dataset))
         # wandb.log({"accuracy": test_acc, "loss": test_loss})
         # print('accuracy and loss', test_acc, test_loss)
         return test_acc, test_loss
@@ -185,7 +218,7 @@ class Train:
         cloned_models = list()
 
         for client in self.clients:
-            cloned = Net()
+            cloned = client.group.model()
             cloned.load_state_dict(client.model.state_dict())
             cloned_models.append(cloned.to(self.device))
 
@@ -224,21 +257,24 @@ class Train:
         global_acc = 0
         for i, client in enumerate(self.clients):
             test_acc, test_loss = self.one_client_evaluation(client.model, client.dataset.test_loader)
+            print('client ', i, "test accuracy and loss: ", test_acc, test_loss)
             global_loss += test_loss
             global_acc += test_acc
 
-        loss_w = -self.grouping.alpha*torch.sum(self.grouping.w_adjacency)
-        loss_norm = 0
-        for i in range(len(self.clients)):
-            for j in range(i+1, len(self.clients)):
-                loss_norm += self.grouping.rho*self.grouping.norm_squared_differences[i, j]/2 * self.grouping.w_adjacency[i, j]
-
-        print('global acc:', global_acc / len(self.models), 'global loss: ', global_loss / len(self.models),
-              'loss norm:', loss_norm, 'loss w:', loss_w, 'norm diff:', self.grouping.norm_squared_differences)
-
-        wandb.log({"accuracy": global_acc / len(self.models), "loss": global_loss / len(self.models),
-                   "objective function": global_loss / len(self.models) + loss_norm + loss_w
-                   }, step=step)
+        print('global acc:', global_acc / len(self.models), 'global loss: ', global_loss / len(self.models))
+        wandb.log({"accuracy": global_acc / len(self.models), "loss": global_loss / len(self.models)})
+        # loss_w = -self.grouping.alpha*torch.sum(self.grouping.w_adjacency)
+        # loss_norm = 0
+        # for i in range(len(self.clients)):
+        #     for j in range(i+1, len(self.clients)):
+        #         loss_norm += self.grouping.rho*self.grouping.norm_squared_differences[i, j]/2 * self.grouping.w_adjacency[i, j]
+        #
+        # print('global acc:', global_acc / len(self.models), 'global loss: ', global_loss / len(self.models),
+        #       'loss norm:', loss_norm, 'loss w:', loss_w, 'norm diff:', self.grouping.norm_squared_differences)
+        #
+        # wandb.log({"accuracy": global_acc / len(self.models), "loss": global_loss / len(self.models),
+        #            "objective function": global_loss / len(self.models) + loss_norm + loss_w
+        #            }, step=step)
 
         return global_acc, global_loss
 
@@ -252,36 +288,78 @@ class Train:
         if aggregator == self.shared_model_weighted_gradient_averaging:
             self.average_layer_parameters()
 
+        def get_lr(optimizer):
+            for param_group in optimizer.param_groups:
+                return param_group['lr']
+
+        optimizer = torch.optim.SGD(self.models[0].parameters(), 0.001)
+        # sched = torch.optim.lr_scheduler.OneCycleLR(optimizer, 0.01, epochs=epochs, steps_per_epoch=len(self.train_loaders[0]))
+
         cnt = 0
         right_grouping = 0
-        for epoch in tqdm(range(epochs)):
-            for batches in zip(*self.train_loaders):
-                model_ind = 0
-                for (data, target) in batches:
-                    model = self.models[model_ind]
-                    model.train()
-                    model.zero_grad()
-                    output = model(data.to(self.device))
-                    loss = model.criterion(output, target.to(self.device))
-                    loss.backward()
-                    model_ind += 1
+        current_epoch = 0
+        while current_epoch < epochs:
+            min_client_epoch = float('inf')
+            for client in self.clients:
+                next_batch, client_epoch = next(client.next_batch)
+                min_client_epoch = min(min_client_epoch, client_epoch)
+
+                client.model.train()
+                client.model.zero_grad()
+                output = client.model(next_batch[0].to(self.device))
+                loss = F.cross_entropy(output, next_batch[1].to(self.device))
+                loss.backward()
+
+            current_epoch = min_client_epoch
+            # for batches in zip(*self.train_loaders):
+            #     model_ind = 0
+            #     for (data, target) in batches:
+            #         model = self.models[model_ind]
+            #         model.train()
+            #         model.zero_grad()
+            #         output = model(data.to(self.device))
+            #         # print('output min and max', torch.amin(output), torch.amax(output))
+            #         # print('is there a nan', torch.isnan(output).any())
+            #         loss = F.cross_entropy(output, target.to(self.device))
+            #         # print(output)
+            #         loss.backward()
+            #         model_ind += 1
 
 
-                if not self.known_grouping:
-                    grouping_method(self.clients, self)
-                        # print('neighbors:')
-                        # for client in self.clients:
-                        #     print(client.neighbor_inds)
-                        #
-                        # if self.clients[0].neighbor_inds == [1] and self.clients[1].neighbor_inds == [0]:
-                        #     right_grouping += 1
 
-                aggregator()
+            if not self.known_grouping:
+                grouping_method(self.clients, self)
+                    # print('neighbors:')
+                    # for client in self.clients:
+                    #     print(client.neighbor_inds)
+                    #
+                    # if self.clients[0].neighbor_inds == [1] and self.clients[1].neighbor_inds == [0]:
+                    #     right_grouping += 1
+            # optimizer.step()
+            # optimizer.zero_grad()
+            # sched.step()
 
-                cnt += 1
-                if cnt % 250 == 0:
-                    print('right grouping percentage:', right_grouping/cnt)
-                    if evaluate == self.one_client_evaluation:
-                        evaluate(self.models[0], self.test_loaders[0])
-                    else:
-                        evaluate(cnt)
+
+
+            aggregator()
+            cnt += 1
+
+            if cnt %250 == 0:
+                evaluate(cnt//250)
+
+
+            # evaluate(epoch)
+            # if epoch > 0 and epoch % 10 == 0:
+            #     self.learning_rate /= 2
+                # cnt += 1
+                # if cnt % 250 == 0:
+                #     if evaluate == self.one_client_evaluation:
+                #         evaluate(self.models[0], self.test_loaders[0])
+                #     else:
+                #         evaluate(cnt)
+
+                    # dist = 0
+                    # for p0, p2 in zip(self.models[0].parameters(), self.models[2].parameters()):
+                    #     dist += torch.norm(p0.data - p2.data, p=2)**2
+                    #
+                    # print('models norm2^2 distances', dist)
