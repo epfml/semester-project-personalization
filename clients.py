@@ -22,7 +22,7 @@ class ClientGroup:
 
         counter1 = []
         counter2 = []
-        for i in range(10):
+        for i in range(100):
             counter1.append(0)
             counter2.append(0)
 
@@ -40,7 +40,6 @@ class ClientGroup:
 
         for i in range(self.clients_num):
             self.clients.append(Client(self, model, i))
-
 
 
 class Client:
@@ -62,12 +61,12 @@ class Client:
         if isinstance(self.group.dataset.train_loader, list):
             self.dataset.train_loader = self.group.dataset.train_loader[index]
 
-        self.next_batch = self.get_next_batch(self.dataset.train_loader)
+        self.next_batch = self.get_next_batch()
 
 
-    def get_next_batch(self, train_loader):
+    def get_next_batch(self):
         num_epoch = 0
         while True:
-            for data in train_loader:
+            for data in self.dataset.train_loader:
                 yield data, num_epoch
             num_epoch += 1

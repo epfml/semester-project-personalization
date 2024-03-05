@@ -51,7 +51,7 @@ class BaseModel(ABC, nn.Module):
         return
 
     def conv_block(self, in_channels, out_channels, pool=False):
-        print('in channels and out channels', in_channels, out_channels)
+        # print('in channels and out channels', in_channels, out_channels)
         layers = [nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1),
                   nn.BatchNorm2d(out_channels),
                   nn.ReLU(inplace=True)]

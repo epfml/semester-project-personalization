@@ -32,14 +32,14 @@ class Dataset:
         if isinstance(train_loader, list):
             print('flipping labels. number of samples in underlying dataset is ', len(train_loader[0].dataset))
             breakpoint()
-            trainloader[0].dataset.targets = (train_loader[0].dataset.targets + seed) % num_labels
+            train_loader[0].dataset.targets = (train_loader[0].dataset.targets + seed) % num_labels
             # for i in range(len(train_loader)):
             #     for _, labels in train_loader[i]:
             #         labels.add_(seed).remainder_(num_labels)
         else:
             train_loader.targets = (train_loader.targets + seed) % num_labels
 
-        test_loader.dataset.targets =  (test_loader.dataset.targets + seed) % num_labels
+        test_loader.dataset.targets = (test_loader.dataset.targets + seed) % num_labels
         # print(train_loader.dataset.targets)
         return train_loader, test_loader
 
@@ -165,10 +165,11 @@ class Dataset:
         test_loader.dataset.targets = torch.tensor(test_loader.dataset.targets)
         if self.flipped:
             train_loader, test_loader = Dataset.flip_labels(train_data, test_loader, self.seed, num_labels=100)
-        # train_loader, val_loader = self.split_train(train_data)
+
+        train_loader, val_loader = self.split_train(train_data)
         # print('1 size:',len(train_loader.dataset))
-        val_loader = DataLoader(train_data, batch_size=self.batch_size_test, shuffle=True)
-        train_loader = DataLoader(train_data, batch_size=self.batch_size_train, shuffle=True)
+        # val_loader = DataLoader(train_data, batch_size=self.batch_size_test, shuffle=True)
+        # train_loader = DataLoader(train_data, batch_size=self.batch_size_train, shuffle=True)
         print('2 size:', len(train_loader.dataset))
 
         return train_loader, val_loader, test_loader

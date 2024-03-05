@@ -149,7 +149,7 @@ class ResNet(BaseModel):
 class ResNet9(BaseModel):
     def __init__(self, client = None, in_channels = 3, num_classes = 100):
         super(ResNet9, self).__init__()
-        print('in channel', in_channels)
+        # print('in channel', in_channels)
         self.conv1 = self.conv_block(in_channels, 64)
         self.conv2 = self.conv_block(64, 128, pool=True)
         self.res1 = nn.Sequential(self.conv_block(128, 128), self.conv_block(128, 128))

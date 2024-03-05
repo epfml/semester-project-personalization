@@ -1,10 +1,7 @@
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
-from tqdm import tqdm
 import wandb
-from Models.smallnet import SmallNet
-
+import os
 
 class Train:
     """
@@ -13,7 +10,7 @@ class Train:
     shared_layer: this is a mask of layers that are shared between all the clients. Other layers are only shared within each group
     """
 
-    def __init__(self, groups, learning_rate, known_grouping, shared_layers = None, grouping = None):
+    def __init__(self, groups, learning_rate, known_grouping, master_process, shared_layers = None, grouping = None):
         self.test_grad = None
         self.groups = groups
         self.learning_rate = learning_rate
@@ -24,6 +21,8 @@ class Train:
         self.grouping = grouping
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         self.train_losses = torch.zeros(len(self.models), device=self.device)
+        self.master_process = master_process
+
         for group in self.groups:
             for client in group.clients:
                 self.clients.append(client)
@@ -246,10 +245,12 @@ class Train:
 
         for client in self.clients:
             model = client.model
+            momentum = model.get_momentum()
             for i, p in enumerate(model.parameters()):
-                p.data -= 1/num_clients * self.learning_rate * p.grad
+                p.data -= 1/num_clients * self.learning_rate * momentum[i]
 
-
+        for model in self.models:
+            model.previous_momentum = model.get_momentum()
 
     def shared_model_evaluation(self, step):
         """evaluating accuracy and loss based on average of accuracy and loss of all agents"""
@@ -263,22 +264,11 @@ class Train:
 
         print('global acc:', global_acc / len(self.models), 'global loss: ', global_loss / len(self.models))
         wandb.log({"accuracy": global_acc / len(self.models), "loss": global_loss / len(self.models)})
-        # loss_w = -self.grouping.alpha*torch.sum(self.grouping.w_adjacency)
-        # loss_norm = 0
-        # for i in range(len(self.clients)):
-        #     for j in range(i+1, len(self.clients)):
-        #         loss_norm += self.grouping.rho*self.grouping.norm_squared_differences[i, j]/2 * self.grouping.w_adjacency[i, j]
-        #
-        # print('global acc:', global_acc / len(self.models), 'global loss: ', global_loss / len(self.models),
-        #       'loss norm:', loss_norm, 'loss w:', loss_w, 'norm diff:', self.grouping.norm_squared_differences)
-        #
-        # wandb.log({"accuracy": global_acc / len(self.models), "loss": global_loss / len(self.models),
-        #            "objective function": global_loss / len(self.models) + loss_norm + loss_w
-        #            }, step=step)
 
         return global_acc, global_loss
 
-    def train(self, aggregator, evaluate, epochs, grouping_method = None):
+    def train(self, aggregator, evaluate, epochs, grouping_method=None,
+              starting_epoch=0, partitioning=None, run_id=None):
         """
         main training loop
         aggregator: one of the methods for aggregating gradients/parameters and updating the models
@@ -288,17 +278,12 @@ class Train:
         if aggregator == self.shared_model_weighted_gradient_averaging:
             self.average_layer_parameters()
 
-        def get_lr(optimizer):
-            for param_group in optimizer.param_groups:
-                return param_group['lr']
-
-        optimizer = torch.optim.SGD(self.models[0].parameters(), 0.001)
-        # sched = torch.optim.lr_scheduler.OneCycleLR(optimizer, 0.01, epochs=epochs, steps_per_epoch=len(self.train_loaders[0]))
-
         cnt = 0
-        right_grouping = 0
+
         current_epoch = 0
-        while current_epoch < epochs:
+        epochs_flag = [False for i in range(epochs*10)]
+
+        while starting_epoch + current_epoch < epochs:
             min_client_epoch = float('inf')
             for client in self.clients:
                 next_batch, client_epoch = next(client.next_batch)
@@ -311,55 +296,46 @@ class Train:
                 loss.backward()
 
             current_epoch = min_client_epoch
-            # for batches in zip(*self.train_loaders):
-            #     model_ind = 0
-            #     for (data, target) in batches:
-            #         model = self.models[model_ind]
-            #         model.train()
-            #         model.zero_grad()
-            #         output = model(data.to(self.device))
-            #         # print('output min and max', torch.amin(output), torch.amax(output))
-            #         # print('is there a nan', torch.isnan(output).any())
-            #         loss = F.cross_entropy(output, target.to(self.device))
-            #         # print(output)
-            #         loss.backward()
-            #         model_ind += 1
 
+            groups_models = []
+            groups_momentums = []
 
+            for i in range(len(self.groups)):
+                group_models = []
+                group_momentums = []
+                for j in range(len(self.groups[i].clients)):
+                    group_models.append(self.groups[i].clients[j].model.state_dict())
+                    group_momentums.append(self.groups[i].clients[j].model.previous_momentum)
+                groups_models.append(group_models)
+                groups_momentums.append(group_momentums)
+
+            if self.master_process and not epochs_flag[current_epoch]:
+                checkpoint_dict = {"current_epoch": current_epoch,
+                                "models": groups_models,
+                                "w_adjacency": self.grouping.w_adjacency,
+                                "partitioning": partitioning,
+                                "learning_rate": self.learning_rate,
+                                "momentum": groups_momentums,
+                                "starting_epoch": current_epoch
+                }
+
+                file_path = "/mloscratch/homes/hashemi/semester-project-personalization/checkpoints/"
+                print("file path:", file_path)
+                torch.save(checkpoint_dict, file_path + run_id + '_last.pt')
+                wandb.save(file_path + run_id + '_last.pt')
+
+                if current_epoch % 5 == 0:
+                    self.learning_rate *= 0.9
+                    torch.save(checkpoint_dict, file_path + run_id + '_epoch' + str(current_epoch) + '.pt')
+                    wandb.save(file_path + run_id + '/epoch' + str(current_epoch) + '.pt')
+
+            epochs_flag[current_epoch] = True
 
             if not self.known_grouping:
                 grouping_method(self.clients, self)
-                    # print('neighbors:')
-                    # for client in self.clients:
-                    #     print(client.neighbor_inds)
-                    #
-                    # if self.clients[0].neighbor_inds == [1] and self.clients[1].neighbor_inds == [0]:
-                    #     right_grouping += 1
-            # optimizer.step()
-            # optimizer.zero_grad()
-            # sched.step()
-
-
 
             aggregator()
             cnt += 1
 
-            if cnt %250 == 0:
-                evaluate(cnt//250)
-
-
-            # evaluate(epoch)
-            # if epoch > 0 and epoch % 10 == 0:
-            #     self.learning_rate /= 2
-                # cnt += 1
-                # if cnt % 250 == 0:
-                #     if evaluate == self.one_client_evaluation:
-                #         evaluate(self.models[0], self.test_loaders[0])
-                #     else:
-                #         evaluate(cnt)
-
-                    # dist = 0
-                    # for p0, p2 in zip(self.models[0].parameters(), self.models[2].parameters()):
-                    #     dist += torch.norm(p0.data - p2.data, p=2)**2
-                    #
-                    # print('models norm2^2 distances', dist)
+            if cnt % 500 == 0 and self.master_process:
+                evaluate(cnt//500)
