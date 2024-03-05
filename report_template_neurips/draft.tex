@@ -38,7 +38,6 @@
 \usepackage[dvipsnames]{xcolor} % defines \textcolor
 \usepackage{tabularx}       % like this for tables
 \usepackage{wrapfig}        % left- and right-floating figures+tables
-
 \usepackage[export]{adjustbox}
 
 
@@ -134,10 +133,804 @@ Personalized federated learning is one way to address this problem.
   For $i\in[n]$, $f_i$ is lower bounded by $f_i^\star$.
 \end{assumption}
 
-\section{Fully connected graph}
+\section{Dynamic graph and full gradient}
+
+\subsection{Problem formulation}
+In this section, we assume not all workers share same stationary points or minimizers. 
+\begin{assumption}[Strong growth condition]\label{a:strong-growth}
+  Let $c\subset[n]$ be the a subset of workers that share same stationary point. Then for $\xx\in\R^d$ and $i\in c$, we have
+  \begin{align*}
+    \norm*{\nabla f_i(\xx) - \nabla \bar{f}_c(\xx)}_2 \le M \norm*{\nabla \bar{f}_c(\xx)}_2.
+  \end{align*}
+\end{assumption}
+The \Cref{a:strong-growth} indicates that when an iterate $\xx$ reaches the stationary point of $\bar{f}_c$, then it also reaches the stationary point of $f$ for all $i\in c$. The optimization objective is that
+\begin{align*}
+  \min_{X\in\mathbb{R}^{d\times n}}&  \frac{1}{n} \sum_{i=1}^n f_i(x_i) + \frac{\rho}{2} \sum_{i<j} w_{ij}\norm*{x_{i} - x_{j}}_2^2.
+\end{align*}
+We optimize the objective with gradient descent with initialization $\xx_i^0=\bar{\xx}^0$
+\begin{equation}\label{eq:x:gd}
+    \xx_i^{t+1}=\xx_i^t - \eta \left(
+      \nabla f_i(\xx^t_i) + \rho \sum_{k=1}^n w^t_{ik}(\xx^t_i - \xx^t_k)
+    \right).
+\end{equation}
+We update $w_{ij}^t$ with the following term
+\begin{align*}
+  w_{ij}^{t+1} = \text{sign}\left(\alpha - \norm{\xx^t_i - \xx^t_j}_2^2 \right)
+\end{align*}
+
+\subsection{Proof Sketch}
+Let us define a virtual iterate $\bar{\xx}_c^t$ that averages iterates in group $c$, i.e. $\bar{\xx}_c^t=\frac{1}{c}\sum_{i\in c} \xx_k^t$. We further define $\1_{i\in c}$ as an indicator function that equals to 1 if $i\in c$ and 0 otherwise.
+Then we denote $\Delta_i^t$ as the error introduced by wrong communication weights $w_{ik}^t$ associated with $i$
+\begin{equation}\label{eq:delta}
+  \Delta_i^t := \sum_{k=1}^n (w_{ik}^t - \1_{i\in c}) \left(\xx_i^t - \xx_k^t\right).
+\end{equation} 
+Then we can rewrite \eqref{eq:x:gd} as
+\begin{equation}\label{eq:x:gd:delta}
+  \xx_i^{t+1}=\xx_i^t - \eta \left(
+    \nabla f_i(\xx^t_i) + \rho\Delta_i^t + \rho c (\xx^t_i - \bar{\xx}_c^t)
+  \right).
+\end{equation}
+Then $\bar{\xx}_c^t$ is updated as follows 
+\begin{equation}\label{eq:x:gd:bar_c}
+  \bar{\xx}_c^{t+1} = \bar{\xx}_c^t - \frac{\eta}{c} \sum_{i\in c}  \nabla f_i(\xx^t_i)
+  - \frac{\rho\eta}{c}\sum_{i\in c} \Delta_i^t.
+\end{equation}
+
+\section{Compact}
+Let $\mX=[\xx_1, \xx_2, \ldots, \xx_n]^\top \in\R^{n\times d}$ be the compact form of iterates and $\nabla F(\mX):= [\nabla f_1(\xx_1), \nabla f_2(\xx_2), \ldots, \nabla f_n(\xx_n)]^\top \in\R^{n\times d}$ and $\mD^t:=\text{Diag}(\mW^t\1)$. 
+Let $\mW^\star$ be the ideal mixing matrix.
+
+We update the iterates as follows
+\begin{equation}
+  \label{eq:X:iterate}
+  \mX^{t+1} = (I - \eta\rho \left( \mD^t - \mW^t \right)) \mX^t - \eta \nabla F(\mX^t).
+\end{equation}
+Then the distance to their own center is
+\begin{align*}
+  % \label{eq:X:cd}
+  (\mD^\star - \mW^\star) \mX^{t+1}
+  = & (\mD^\star - \mW^\star)(I - \eta\rho \left( \mD^t - \mW^t \right)) \mX^t
+  -\eta(\mD^\star - \mW^\star) \nabla F(\mX^t) \\
+  = & (I - \eta\rho \left( \mD^\star - \mW^\star \right)) (\mD^\star - \mW^\star) \mX^t \\
+  & + \eta\rho(\mD^\star - \mW^\star)(\mD^\star - \mW^\star - \mD^t + \mW^t) \mX^t \\
+  & -\eta(\mD^\star - \mW^\star) \nabla F(\mX^t) \\
+  \end{align*}
+
+
+\section{legacy}
+
+\begin{lemma}[Sufficient Decrease]\label{lemma:sd:1}
+  Suppose \Cref{a:smooth,a:lower-bound} holds and $\eta\le\frac{1}{L}$. Then~\eqref{eq:x:gd:1} satisfies
+  \begin{multline*}
+    \frac{1}{T} \sum_{t=0}^{T-1} \norm*{\nabla \bar{f}_c(\bar{\xx}_c^t)}_2^2
+    + \frac{1}{2T} \sum_{t=0}^{T-1} \norm*{\frac{\bar{\xx}_c^{t} - \bar{\xx}_c^{t+1}}{\eta}}_2^2 \\
+    \le \frac{2(\bar{f}_c(\bar{\xx}^{0}) - \bar{f}_c^\star)}{T\eta}
+    + \frac{2L^2}{Tc} \sum_{t=0}^{T-1}  \sum_{i\in c} \norm*{\xx^t_i
+    - \bar{\xx}_c^t}_2^2
+    + \frac{2\rho^2}{T} \sum_{t=0}^{T-1} \norm*{\frac{1}{c}\sum_{i\in c} \Delta_i^t}_2^2 .
+  \end{multline*}
+\end{lemma}
+The proof is deferred to \Cref{ssec:proof:sd:1}. Next, we show that the iterates converge to the stationary point of their local objective. The $n$ does not appear here as we are using full gradient.
+\begin{theorem}\label{th:convergence}
+  Suppose \Cref{a:smooth,a:lower-bound} holds and $\eta\le\frac{1}{L}$,  $\alpha\rho\le\frac{1}{n^2\eta T}$. Then for all $i\in[n]$, iterates $\xx_i^t$ in \eqref{eq:x:gd:1} eventually reach their stationary points
+  \begin{align*}
+    \frac{1}{T}\sum_{t=0}^{T-1} \norm*{\nabla f_i(\xx_i^t)}_2^2
+    \le& \frac{2(f_i(\xx^{0}) - f_i^\star)}{T\eta} + \cO\left(\frac{1}{T\eta}\right).
+  \end{align*}
+\end{theorem}
+The proof is deferred to \Cref{ssec:proof:convergence:1}.
+Next we show that if two workers share same stationary point, that is satisfying \Cref{a:strong-growth}, then these iterates converge to the same stationary points.
+\begin{theorem}\label{th:consensus-distance:2}
+  Suppose \Cref{a:smooth,a:lower-bound} holds, $\rho=4L$, $\eta\le\frac{1}{128nL}$, and $\alpha=O(\frac{1}{4Ln^2\eta T})$. Then for any pair of $i,j$ satisfies \Cref{a:strong-growth}, their iterates converge
+  \begin{align*}
+    \frac{1}{T} \sum_{t=0}^{T-1} \norm{\xx_i^{t} - \xx_j^{t}}_2^2
+    \le& \frac{M^2}{L^2\eta}\left( \frac{2(f_i(\xx^{0}) - f_i^\star)}{T} + \cO\left(\frac{1}{T}\right) \right)
+    + \frac{2}{L^3n^2\eta^2 T}.
+  \end{align*}
+\end{theorem}
+The proof is deferred to \Cref{ssec:proof:consensus-distance:2}. Note that the iteration complexity is
+\begin{align*}
+  T=\cO(n\epsilon^{-1}).
+\end{align*}
+This is worse than training alone ($\cO(\epsilon^{-1})$). This is because we lower the step size so as to let all workers sharing same stationary point can reach them.
+
+Assuming that the cluster is balanced, i.e. $n_i=n/K$ for all $i\in[n]$, we can further improve the iteration complexity to $\cO(K\epsilon^{-1})$.
+\begin{theorem}\label{th:consensus-distance:balanced}
+  Suppose \Cref{a:smooth,a:lower-bound} holds. Let $\rho=\frac{4LK}{n}$, $\eta\le\frac{1}{4LK}$, and $\alpha\le\frac{1}{4LnK\eta T}$. Then for any pair of $i,j$ satisfies \Cref{a:strong-growth} and $n_i^t,n_j^t\ge \frac{n}{K}$, their iterates converge
+  \begin{align*}
+    \frac{1}{T} \sum_{t=0}^{T-1} \norm{\xx_i^{t} - \xx_j^{t}}_2^2
+    \le& \frac{M^2}{L^2\eta}\left( \frac{2(f_i(\xx^{0}) - f_i^\star)}{T} + \cO\left(\frac{1}{T}\right) \right)
+    + \frac{1}{2L^3K^2\eta^2T}.
+  \end{align*}
+  \end{theorem}
+
+
+
+
+\newpage
+\appendix
+
+\section{Proofs}
+\subsection{Proof of \Cref{lemma:sd:1}}\label{ssec:proof:sd:1}
+\begin{proof}
+  By the $L$-smoothness propert y of $\bar{f}_c$ as outlined in \Cref{a:smooth}, we have
+  \begin{align*}
+    \bar{f}_c(\bar{\xx}_c^{t+1}) \le& \bar{f}_c(\bar{\xx}_c^t) + \langle\nabla \bar{f}_c(\bar{\xx}_c^t), \bar{\xx}_c^{t+1} - \bar{\xx}_c^t\rangle + \frac{L}{2}\norm{\bar{\xx}_c^{t+1} - \bar{\xx}_c^t}_2^2 \\
+    =& \bar{f}_c(\bar{\xx}_c^t) - \frac{\eta}{2} \norm{\nabla \bar{f}_c(\bar{\xx}_c^t)}_2^2 + \frac{\eta}{2}\norm*{\frac{\bar{\xx}_c^{t} - \bar{\xx}_c^{t+1}}{\eta} - \nabla \bar{f}_c(\bar{\xx}_c^t)}_2^2 
+    - \frac{\eta(1-L\eta)}{2} \norm*{\frac{\bar{\xx}_c^{t} \!-\!  \bar{\xx}_c^{t+1}}{\eta}}_2^2.
+  \end{align*}
+  Here the linear term is expanded as follows
+  \begin{align*}
+    - \langle\nabla \bar{f}_c(\bar{\xx}_c^t), \bar{\xx}_c^{t} - \bar{\xx}_c^{t+1}\rangle 
+    =&- \frac{\eta}{2} \norm*{\nabla \bar{f}_c(\bar{\xx}_c^t)}_2^2 
+    - \frac{\eta}{2} \norm*{\frac{\bar{\xx}_c^{t} - \bar{\xx}_c^{t+1}}{\eta}}_2^2 
+    + \frac{\eta}{2} \norm*{\frac{\bar{\xx}_c^{t} - \bar{\xx}_c^{t+1}}{\eta} - \nabla \bar{f}_c(\bar{\xx}_c^{t})}_2^2.
+  \end{align*}
+  By the update of $\bar{\xx}_c^t$ in~\eqref{eq:x:gd:bar_c} and L-smoothness of $f_i$, we derive
+  \begin{align*}
+    \norm*{\frac{\bar{\xx}_c^{t}-\bar{\xx}_c^{t+1}}{\eta} - \nabla \bar{f}_c(\bar{\xx}_c^{t})}_2^2
+    =& \norm*{
+      \frac{1}{c} \sum_{i\in c}  \nabla f_i(\xx^t_i)
+      + \frac{\rho}{c}\sum_{i\in c} \Delta_i^t
+     - \nabla \bar{f}_c(\bar{\xx}_c^t)}_2^2 \\
+     \le& 2 \norm*{
+      \frac{1}{c} \sum_{i\in c}  \nabla f_i(\xx^t_i)
+     - \nabla \bar{f}_c(\bar{\xx}_c^t)}_2^2
+     + 2 \norm*{\frac{\rho}{c}\sum_{i\in c} \Delta_i^t}_2^2 \\
+     \le& \frac{2}{c} \sum_{i\in c} \norm*{\nabla f_i(\xx^t_i)
+      - \nabla f_i(\bar{\xx}_c^t)}_2^2
+     + 2\rho^2\norm*{\frac{1}{c}\sum_{i\in c} \Delta_i^t}_2^2 \\
+     \le& \frac{2L^2}{c} \sum_{i\in c} \norm*{\xx^t_i
+      - \bar{\xx}_c^t}_2^2
+     + 2\rho^2\norm*{\frac{1}{c}\sum_{i\in c} \Delta_i^t}_2^2 \\
+     \le& \frac{2L^2}{c^2} \sum_{i\in c} \sum_{j\in c} \norm*{\xx^t_i
+      - \xx_j^t}_2^2
+     + \frac{2\rho^2}{c}\sum_{i\in c}\norm*{ \Delta_i^t}_2^2.
+  \end{align*}
+  Then we have the following upper bound
+  \begin{equation}\label{eq:sd:1}
+    \norm{\nabla \bar{f}_c(\bar{\xx}_c^t)}_2^2
+    \le \frac{2(\bar{f}_c(\bar{\xx}_c^{t}) - \bar{f}_c(\bar{\xx}_c^{t+1}))}{\eta}
+    + \frac{2L^2}{c}  \sum_{i\in c} \sum_{j\in c} \norm*{\xx^t_i
+    - \xx_j^t}_2^2
+    + \frac{2\rho^2}{c} \sum_{i\in c}\norm*{ \Delta_i^t}_2^2.
+  \end{equation}
+  By averaging the above inequality over $t=0$ to $T-1$ and let $\eta\le\frac{1}{2L}$, we derive
+  \begin{multline*}
+    \frac{1}{T} \sum_{t=0}^{T-1} \norm*{\nabla \bar{f}_c(\bar{\xx}_c^t)}_2^2
+    \le \frac{2(\bar{f}_c(\bar{\xx}^{0}) - \bar{f}_c^\star)}{T\eta}
+    + \frac{2L^2}{Tc} \sum_{t=0}^{T-1}  \sum_{i\in c} \sum_{j\in c} \norm*{\xx^t_i
+    - \xx_j^t}_2^2
+    + \frac{2\rho^2}{Tc} \sum_{t=0}^{T-1} \sum_{i\in c}\norm*{ \Delta_i^t}_2^2.
+  \end{multline*}
+\end{proof}
+\subsection{Bound $\Delta_i^t$}
+\begin{lemma}
+  Suppose that $\alpha^t$ is large enough to ensure that workers in the same cluster are connected, i.e.  $\alpha^t \ge \max_{i,j\in c} \norm{\xx_i^t - \xx_j^t}_2^2$ for all cluster $c$.
+  Then the error caused by wrong communication weights $\Delta_i^t$ satisfies the following upper bound
+  \begin{equation}\label{eq:delta:1}
+    \norm*{\Delta_i^t}_2^2    \le \alpha^t \left(\sum_{k\notin c } w_{ik}^t \right)^2 
+    \le \alpha^t (n_c^t)^2.
+  \end{equation}
+  Note that here we have a loose upper bound $n^2$. This, however, can be improved to 0 when clusters are well-separated.
+\end{lemma}
+\begin{proof}
+  The error caused by wrong communication weights can be decomposed into two parts
+  \begin{align*}
+    \Delta_i^t = & \sum_{k=1}^n (w_{ik}^t - \1_{i\in c}) \left(\xx_i^t - \xx_k^t\right) 
+    = \sum_{k\notin c} w_{ik}^t \left(\xx_i^t - \xx_k^t\right)
+    + \sum_{k\in c} (w_{ik}^t - 1) \left(\xx_i^t - \xx_k^t\right) \\
+    =& 
+    \underbrace{\sum_{\substack{k\notin c \\ w_{ik}^t=1}} w_{ik}^t \left(\xx_i^t - \xx_k^t\right)}_\text{Inclusion error of other-cluster workers.}
+    + \underbrace{\sum_{\substack{k\in c \\ w_{ik}^t=0}} (w_{ik}^t - 1) \left(\xx_i^t - \xx_k^t\right)}_\text{Exclusion error of same-cluster workers.}.
+  \end{align*}
+  As we choose $\alpha^t$ large enough so that for all $i,k\in c$, $w_{ik}^t=1$, there is no exclusion error
+  \begin{equation}\label{eq:delta:2}
+    \Delta_i^t = \sum_{\substack{k\notin c \\ w_{ik}^t=1}} w_{ik}^t \left(\xx_i^t - \xx_k^t\right).
+  \end{equation}
+  Now apply Cauchy-Schwarz inequality $(\sum_i a_i b_i)^2 \le (\sum_i a_i^2)(\sum_i b_i^2)$ to $\norm*{\Delta_i^t}_2^2$ with 
+  \begin{align*}
+    a_i=\sqrt{w_{ik}^t}, \text{ and } b_i=\sqrt{w_{ik}^t} (\xx_i^t - \xx_k^t)
+  \end{align*}
+  we yield the following upper bound
+  \begin{equation*}
+    \norm*{\Delta_i^t}_2^2\le
+   \sum_{\substack{k\notin c \\ w_{ik}^t=1}} w_{ik}^t \sum_{\substack{k\notin c \\ w_{ik}^t=1}} w_{ik}^t \norm*{ \xx_i^t - \xx_k^t}_2^2
+    \le \alpha^t \left(\sum_{\substack{k\notin c \\ w_{ik}^t=1}} 1\right)^2 
+    \le \alpha^t(n_c^t)^2.
+  \end{equation*}
+
+\end{proof}
+
+\subsection{Proof of pairwise distances (within cluster)}
+\begin{lemma}[]
+  \label{lemma:within-cluster}
+  Suppose workers in a cluster $c$ (i.e., $w_{ij}^\star=1$) are already close enough so that $w_{ik}^t=w_{jk}^t$ for all $k\in[n]$. Let us further assume that at time $t$,$w_{ik}^t=w_{jk}^t=1$ for all $k\in c$ and $M$ is sufficiently small. Then by choosing penalization coefficient $\rho$ and step-size $\eta$ such that
+  \begin{align*}
+    \eta^2 \le \frac{1}{64L^2 + 128L^2M^2 + 128\rho^2(n_c^t)^2M^2} \text{ and } \rho\eta \in \left[\frac{1}{2},1\right],
+  \end{align*}
+  and by using the following schedule for $\alpha^t$
+  \begin{align*}
+    \alpha^{t+1} = \left(1 - \frac{1}{2}\rho\eta \right) \alpha^t + 32\eta M^2\sum_c(\bar{f}_c(\bar{\xx}_c^{t}) - \bar{f}_c(\bar{\xx}_c^{t+1})),
+  \end{align*}
+  workers in $c$ remain close enough (i.e., $w_{ik}^{t+1}=w_{jk}^{t+1}$ for all $k$)
+  \begin{align*}
+    \max_c\max_{i,j\in c} \norm*{\xx_i^{t+1} - \xx_j^{t+1}}_2^2 \le& \alpha^{t+1}.
+  \end{align*}
+  The time averaged $\alpha$ satisfies
+  \begin{align*}
+    \frac{1}{T}\sum_{t=0}^{T-1} \alpha^t
+    \le&   \frac{64M^2 (\bar{f}_c(\xx^0) - \bar{f}_c^\star)}{\rho c T} .
+  \end{align*}
+
+\end{lemma}
+\begin{proof}
+  As $w^\star_{ij}=1$ and $w_{ik}^t=w_{jk}^{t}$ for all $k$, their distance can be expanded as follows
+  \begin{align*}
+    &\norm*{\xx_i^{t+1} - \xx_j^{t+1}}_2^2 \\
+    =& \norm*{ \xx_i^t - \xx_j^t
+    - \eta (\nabla f_i(\xx^t_i) - \nabla f_j(\xx^t_j)) 
+      - \rho\eta\left( \sum_{k=1}^n w^t_{ik}(\xx_i^t - \xx_k^t)-\sum_{k=1}^n w^t_{jk}(\xx_j^t - \xx_k^t) \right) }_2^2 \\
+    =& \norm*{ \left(1 - \rho\eta \sum_{k=1}^n w^t_{ik} \right) (\xx_i^t - \xx_j^t)
+    - \eta (\nabla f_i(\xx^t_i) - \nabla f_j(\xx^t_j)) 
+    % - \rho\eta\left( \Delta_i^t- \Delta_j^t \right)
+    }_2^2.
+    \end{align*}
+    We use Cauchy-Schwarz inequality to upper bound the RHS of the above equality
+    \begin{equation}\label{eq:within-cluster:1}
+      \begin{split}
+      \norm*{\xx_i^{t+1} - \xx_j^{t+1}}_2^2 
+      \le&
+      2 \left(1 - \rho\eta \sum_{k=1}^n w^t_{ik} \right)^2
+      \norm*{ \xx_i^t - \xx_j^t}_2^2
+    + 2 \eta^2 \norm*{\nabla f_i(\xx^t_i) - \nabla f_j(\xx^t_j) }_2^2 \\
+    \le&
+    2 \left(1 - \rho\eta  \right)^2
+    \norm*{ \xx_i^t - \xx_j^t}_2^2
+    + 2 \eta^2 \norm*{\nabla f_i(\xx^t_i) - \nabla f_j(\xx^t_j) }_2^2.
+  \end{split}
+  \end{equation}
+    We add $\pm \nabla f_i(\bar{\xx}^t_c)\pm\nabla \bar{f}_c(\bar{\xx}^t_c)\pm \nabla f_j(\bar{\xx}^t_c)$ to $\norm*{\nabla f_i(\xx^t_i) - \nabla f_j(\xx^t_j) }_2^2$ and apply Cauchy-Schwarz inequality again
+    and smoothness assumption \Cref{a:smooth} and strong-growth condition \Cref{a:strong-growth}
+    \begin{align*}
+      \norm*{\nabla f_i(\xx^t_i) - \nabla f_j(\xx^t_j) }_2^2
+      \le& 4 \norm*{\nabla f_i(\xx^t_i) - \nabla f_i(\bar{\xx}^t_c) }_2^2
+      + 4 \norm*{\nabla f_i(\bar{\xx}^t_c) - \nabla \bar{f}_c(\bar{\xx}^t_c) }_2^2 \\
+      & + 4 \norm*{ \nabla \bar{f}_c(\bar{\xx}^t_c) - \nabla f_j(\bar{\xx}^t_c) }_2^2
+      + 4 \norm*{ \nabla f_j(\bar{\xx}^t_c) - \nabla f_j(\xx^t_j) }_2^2 \\
+      \le& 4 \left(L^2\norm*{\xx_i^t -\bar{\xx}_c^t }_2^2 + 2M^2 \norm*{ \nabla \bar{f}_c(\bar{\xx}^t_c) }_2^2
+      + L^2\norm*{\xx_j^t -\bar{\xx}_c^t }_2^2 \right).
+    \end{align*}
+    Now we take max $i,j$ over $c$
+    \begin{align*}
+      \max_{i,j\in c} \norm*{\nabla f_i(\xx^t_i) - \nabla f_j(\xx^t_j) }_2^2
+      \le& 8 \left(L^2 \max_{i\in c} \norm*{\xx_i^t -\bar{\xx}_c^t }_2^2 + M^2 \norm*{ \nabla \bar{f}_c(\bar{\xx}^t_c) }_2^2\right) \\
+      \le& 8 \left(L^2 \max_{i,j\in c} \norm*{\xx_i^t -\xx_j^t }_2^2 + M^2 \norm*{ \nabla \bar{f}_c(\bar{\xx}^t_c) }_2^2\right).
+    \end{align*}
+    Combine the above inequality with~\eqref{eq:within-cluster:1} yields
+    \begin{align*}
+      \max_{i,j\in c} \norm*{\xx_i^{t+1} - \xx_j^{t+1}}_2^2 
+      \le& 2 \left(1 - \rho\eta  \right)^2 \max_{i,j\in c} \norm*{ \xx_i^t - \xx_j^t}_2^2 \\
+      &+ 16\eta^2 \left( L^2 \max_{i,j\in c} \norm*{\xx_i^t -\xx_j^t }_2^2 + M^2 \norm*{ \nabla \bar{f}_c(\bar{\xx}^t_c) }_2^2\right).
+    \end{align*}
+    Taking $\rho\eta  \in [\frac{1}{2}, 1]$ so that $2(1-\rho\eta )^2\le (1-\rho\eta )$
+    \begin{align*}
+      \max_{i,j\in c} \norm*{\xx_i^{t+1} - \xx_j^{t+1}}_2^2 
+      \le& \left(1 - \rho\eta  + 16L^2\eta^2 \right) \max_{i,j\in c} \norm*{ \xx_i^t - \xx_j^t}_2^2 + 16\eta^2  M^2 \norm*{ \nabla \bar{f}_c(\bar{\xx}^t_c) }_2^2.
+    \end{align*}
+    Use the upper bound on $\norm*{ \nabla \bar{f}_c(\bar{\xx}^t_c) }_2^2$ as outlined in~\eqref{eq:sd:1}
+    \begin{align*}
+      \max_{i,j\in c} \norm*{\xx_i^{t+1} - \xx_j^{t+1}}_2^2 
+      \le& \left(1 -\rho\eta + 16L^2\eta^2 + 32L^2\eta^2M^2 \right) \max_{i,j\in c} \norm*{ \xx_i^t - \xx_j^t}_2^2  \\
+      & + 32\eta M^2(\bar{f}_c(\bar{\xx}_c^{t}) - \bar{f}_c(\bar{\xx}_c^{t+1}))
+      + 32\rho^2 \eta^2M^2 \frac{1}{c} \sum_{i\in c}\norm*{ \Delta_i^t}_2^2.  
+    \end{align*}
+    Use the upper bound on $\norm*{ \Delta_i^t}_2^2$ from~\eqref{eq:delta:1}, we obtain
+    \begin{align*}
+      \max_{i,j\in c} \norm*{\xx_i^{t+1} - \xx_j^{t+1}}_2^2 
+      \le& \left(1 -\rho\eta + 16L^2\eta^2 + 32L^2\eta^2M^2\right) \max_{i,j\in c} \norm*{ \xx_i^t - \xx_j^t}_2^2  \\
+      &+ 32\eta M^2(\bar{f}_c(\bar{\xx}_c^{t}) - \bar{f}_c(\bar{\xx}_c^{t+1})) 
+      + 32\rho^2 \eta^2M^2  (n_c^t)^2\alpha^t.  
+    \end{align*}
+    Given that $\alpha^t\ge\max_{i,j\in c} \norm*{ \xx_i^t - \xx_j^t}_2^2$, the right hand side of the above inequality can be simplified as follows
+    \begin{align*}
+      \max_{i,j\in c} \norm*{\xx_i^{t+1} - \xx_j^{t+1}}_2^2 
+      \le& \left(1 -\rho\eta + 16L^2\eta^2 + 32L^2\eta^2M^2 + 32\rho^2 \eta^2M^2  (n_c^t)^2 \right) \alpha^t  \\
+      &+ 32\eta M^2(\bar{f}_c(\bar{\xx}_c^{t}) - \bar{f}_c(\bar{\xx}_c^{t+1})).
+    \end{align*}
+    By taking $\eta^2 \le \frac{1}{2} \frac{1}{32L^2 + 64L^2M^2 + 64\rho^2(n_c^t)^2M^2} \le \frac{\rho\eta}{32L^2 + 64L^2M^2 + 64\rho^2(n_c^t)^2M^2}$, we have
+    \begin{align*}
+      16L^2\eta^2 + 32L^2\eta^2M^2 + 32\rho^2 \eta^2M^2  (n_c^t)^2 \le \frac{1}{2} \rho\eta ,
+    \end{align*}
+    and therefore
+    \begin{align*}
+      \max_{i,j\in c} \norm*{\xx_i^{t+1} - \xx_j^{t+1}}_2^2 
+      \le& \left(1 - \frac{1}{2}\rho\eta  \right) \alpha^t + 32\eta M^2(\bar{f}_c(\bar{\xx}_c^{t}) - \bar{f}_c(\bar{\xx}_c^{t+1})).
+    \end{align*}
+    Now we take maximum over all clusters and define the right hand side as $\alpha^{t+1}$, we have
+    \begin{align*}
+      \max_c\max_{i,j\in c} \norm*{\xx_i^{t+1} - \xx_j^{t+1}}_2^2 
+      \le& \underbrace{\left(1 - \frac{1}{2}\rho\eta \right) \alpha^t + 32\eta M^2 \sum_c (\bar{f}_c(\bar{\xx}_c^{t}) - \bar{f}_c(\bar{\xx}_c^{t+1}))}_{\alpha^{t+1}}.
+    \end{align*}
+    If we average the above inequality over $t=0$ to $T-1$, we have
+    \begin{align*}
+      \frac{1}{T}\sum_{t=0}^{T-1} \alpha^t
+      \le&   \frac{64M^2 \sum_c(\bar{f}_c(\xx^0) - \bar{f}_c^\star)}{\rho T} .
+    \end{align*}
+
+    For $i\in c$ and $k\notin c$, for small $t$, 
+    $\alpha^{t+1}\ge\norm*{\xx_i^{t+1} - \xx_j^{t+1}}_2^2$
+    $w_{ik}^t=w_{jk}^t=1$
+    \begin{align*}
+    \frac{\eta^2\zeta^2}{8}\le& 
+    \frac{5}{T}\sum_{t=0}^{T-1} \norm*{\xx_i^t - \xx_k^t}_2^2
+    + \frac{7\cdot 64M^2 \sum_c(\bar{f}_c(\xx^0) - \bar{f}_c^\star)}{\rho T}
+    + \eta \frac{f_i(\xx^0) - f_i^\star}{T}.
+    \end{align*}
+    which means for sufficiently large $T$, $\norm*{\xx_i^T - \xx_k^T}_2^2$ is lower bounded by $O(\eta\zeta^2)$ and therefore eventually $w_{ik}^t = 0$ for all $i\in c,k\notin c$.
+\end{proof}
+
+\subsection{Proof of pairwise distances (within distance)}
+\begin{equation}
+  \label{eq:ge}
+  (a-b)^2 \ge \frac{1}{2}a^2 - b^2.
+\end{equation}
+\begin{assumption}
+  \label{a:uniform-lowerbound}
+  For $i\in c$ and $j\notin c$ and for all $\xx$, we have
+  \begin{align*}
+    \norm*{\nabla f_i(\xx)}_2^2  + \norm*{\nabla f_j(\xx)}_2^2 \ge \zeta^2.
+  \end{align*}
+\end{assumption}
+\begin{proof}
+  Consider $i,j$ such that $i\in c$ and $j\notin c$, use~\eqref{eq:x:gd} to expand $\xx_i^{t+1}$
+  \begin{align*}
+    &\norm*{\xx_i^{t+1} - \xx_j^{t+1}}_2^2 \\
+    =& \left\lVert\xx_i^t - \xx_j^t 
+    - \eta \left(\nabla f_i(\xx^t_i) - \nabla f_j(\xx^t_j)\right)
+    - \eta \rho \sum_{k=1}^n \left(
+         w^t_{ik}(\xx^t_i - \xx^t_k) - w^t_{jk}(\xx^t_j - \xx^t_k)
+    \right) \right\rVert_2^2 \\
+    \stackrel{\eqref{eq:ge}}{\ge} & \frac{\eta^2}{2} \norm*{\nabla f_i(\xx^t_i) - \nabla f_j(\xx^t_j)}_2^2
+    - \norm*{\xx_i^t - \xx_j^t - \eta \rho \sum_{k=1}^n \left(
+      w^t_{ik}(\xx^t_i - \xx^t_k) - w^t_{jk}(\xx^t_j - \xx^t_k)
+      \right)}_2^2.
+  \end{align*}
+  Now we rearrange order and use Cauchy-Schwarz inequality
+  \begin{align*}
+    &\frac{\eta^2}{2} \norm*{\nabla f_i(\xx^t_i) - \nabla f_j(\xx^t_j)}_2^2\\
+    \le& 
+    \norm*{\xx_i^{t+1} - \xx_j^{t+1}}_2^2 + \norm*{\xx_i^t - \xx_j^t - \eta \rho \sum_{k=1}^n \left(w^t_{ik}(\xx^t_i - \xx^t_k) - w^t_{jk}(\xx^t_j - \xx^t_k)\right)}_2^2 \\
+    \le& 
+    \norm*{\xx_i^{t+1} - \xx_j^{t+1}}_2^2 
+    + 3\norm*{\xx_i^t - \xx_j^t}_2^2
+    + 3\eta^2\rho^2\norm*{ \sum_{k=1}^n w^t_{ik}(\xx^t_i - \xx^t_k) }_2^2 
+    + 3\eta^2\rho^2\norm*{ \sum_{k=1}^n w^t_{jk}(\xx^t_j - \xx^t_k)}_2^2\\
+    \le& 
+    \norm*{\xx_i^{t+1} - \xx_j^{t+1}}_2^2 
+    + 3\norm*{\xx_i^t - \xx_j^t}_2^2
+    + 3\eta^2\rho^2 \left(\sum_{k=1}^n w^t_{ik}\right)
+    \sum_{k=1}^n w^t_{ik} \norm*{ \xx^t_i - \xx^t_k }_2^2  \\
+    & +3\eta^2\rho^2 \left(\sum_{k=1}^n w^t_{jk}\right)
+    \sum_{k=1}^n w^t_{jk} \norm*{ \xx^t_j - \xx^t_k }_2^2.
+  \end{align*}
+  Now we use the definition of $w_{ik}^t$ to upper bound the above inequality
+  \begin{equation} \label{eq:lower-bound:1}
+    \begin{split}
+    &\frac{\eta^2}{2} \norm*{\nabla f_i(\xx^t_i) - \nabla f_j(\xx^t_j)}_2^2\\
+    \le& 
+    \norm*{\xx_i^{t+1} - \xx_j^{t+1}}_2^2 
+    + 3\norm*{\xx_i^t - \xx_j^t}_2^2
+    + 3\eta^2\rho^2\alpha^t \left(\sum_{k=1}^n w^t_{ik}\right)^2
+    + 3\eta^2\rho^2\alpha^t \left(\sum_{k=1}^n w^t_{jk}\right)^2 \\
+    \le& 
+    \norm*{\xx_i^{t+1} - \xx_j^{t+1}}_2^2 
+    + 3\norm*{\xx_i^t - \xx_j^t}_2^2
+    + 6\eta^2\rho^2n^2\alpha^t
+  \end{split}
+\end{equation}
+  where we use $\sum_{k=1}^n w_{ik}^t \le n $ in the last inequality.
+  
+  Now we want to find a lower bound of $\norm*{\nabla f_i(\xx^t_i) - \nabla f_j(\xx^t_j)}_2^2$ using~\eqref{eq:ge} and \Cref{a:smooth}
+  \begin{align*}
+    \norm*{\nabla f_i(\xx^t_i) - \nabla f_j(\xx^t_j)}_2^2
+    =& \norm*{\nabla f_i(\xx^t_i) - \nabla f_j(\xx^t_i) + \nabla f_j(\xx^t_i) - \nabla f_j(\xx^t_j)}_2^2 \\
+    \stackrel{\eqref{eq:ge}}{\ge}& \frac{1}{2} \norm*{\nabla f_i(\xx^t_i) - \nabla f_j(\xx^t_i)}_2^2
+    - \norm*{\nabla f_j(\xx^t_i) - \nabla f_j(\xx^t_j)}_2^2 \\
+    \stackrel{\Cref{a:smooth}}{\ge}& \frac{1}{2} \norm*{\nabla f_i(\xx^t_i) - \nabla f_j(\xx^t_i)}_2^2
+    - L^2\norm*{\xx^t_i - \xx^t_j}_2^2 \\
+    \stackrel{\eqref{eq:ge}}{\ge}& \frac{1}{4} \norm*{\nabla f_j(\xx^t_i)}_2^2 - \frac{1}{2}\norm*{\nabla f_i(\xx^t_i)}_2^2
+    - L^2\norm*{\xx^t_i - \xx^t_j}_2^2.
+  \end{align*}
+  Add $\frac{3}{4}\norm*{\nabla f_i(\xx^t_i)}_2^2 + L^2\norm*{\xx^t_i - \xx^t_j}_2^2$ to both sides and use \Cref{a:uniform-lowerbound}
+  \begin{equation}\label{eq:lower-bound:2}
+    \begin{split}
+    &\norm*{\nabla f_i(\xx^t_i) - \nabla f_j(\xx^t_j)}_2^2
+    + \frac{3}{4} \norm*{\nabla f_i(\xx^t_i)}_2^2
+    + L^2\norm*{\xx^t_i - \xx^t_j}_2^2 \\
+    \ge& \frac{1}{4} \norm*{\nabla f_j(\xx^t_i)}_2^2
+    + \frac{1}{4} \norm*{\nabla f_i(\xx^t_i)}_2^2
+    \stackrel{\Cref{a:uniform-lowerbound}}{\ge} \frac{\zeta^2}{4}.
+    \end{split}
+  \end{equation}
+  Note that $\xx_i^t$ converges to the stationary point of $f_i$
+  \begin{equation}\label{eq:lower-bound:3}
+    \begin{split}
+    \frac{\eta}{2} \norm*{\nabla f_i(\xx^t_i)}_2^2
+    \le& f_i(\xx_i^t) - f_i(\xx_i^{t+1}) + \frac{\eta}{2} \norm*{\frac{\xx_i^t - \xx_i^{t+1}}{\eta} - \nabla f_i(\xx^t_i)}_2^2 \\
+    \le& f_i(\xx_i^t) - f_i(\xx_i^{t+1}) + \frac{\eta}{2} \norm*{\rho \sum_{k=1}^n w^t_{ik}(\xx^t_i - \xx^t_k)}_2^2 \\
+    \le& f_i(\xx_i^t) - f_i(\xx_i^{t+1}) + \frac{\eta\rho^2\alpha^t}{2}
+    \left(\sum_{k=1}^n w^t_{ik}\right)^2 \\ 
+    \le& f_i(\xx_i^t) - f_i(\xx_i^{t+1}) + \frac{n^2 \eta\rho^2\alpha^t}{2}.
+    \end{split}
+  \end{equation}
+  Combine \eqref{eq:lower-bound:1}, \eqref{eq:lower-bound:2}, and \eqref{eq:lower-bound:3}, we have that
+  \begin{align*}
+    \frac{\eta^2\zeta^2}{8}
+    \le& 
+    \norm*{\xx_i^{t+1} - \xx_j^{t+1}}_2^2 
+    + 3\norm*{\xx_i^t - \xx_j^t}_2^2
+    + 6\eta^2\rho^2n^2\alpha^t
+    + \frac{\eta^2}{2} \norm*{\nabla f_i(\xx^t_i)}_2^2
+    + \frac{L^2\eta^2}{2}\norm*{\xx^t_i - \xx^t_j}_2^2 \\
+    \le& 
+    \norm*{\xx_i^{t+1} - \xx_j^{t+1}}_2^2 
+    + 3\norm*{\xx_i^t - \xx_j^t}_2^2
+    + 6\eta^2\rho^2n^2\alpha^t
+    + \eta (f_i(\xx_i^t) - f_i(\xx_i^{t+1})) \\
+    &+ \eta^2n^2\rho^2\alpha^t
+    + \frac{L^2\eta^2}{2}\norm*{\xx^t_i - \xx^t_j}_2^2.
+  \end{align*}
+  By taking $\eta\le\frac{2}{L}$ and assume $w_{ij}^t=1$ and $w_{ij}^{t+1}=1$ and therefore
+  $\norm*{\xx_i^t - \xx_j^t}_2^2\le\alpha^t$, then
+  \begin{align*}
+    \frac{\eta^2\zeta^2}{8}\le& 
+    \alpha^{t+1} 
+    + (4+7\eta^2\rho^2n^2)\alpha^t
+    + \eta (f_i(\xx_i^t) - f_i(\xx_i^{t+1})).
+  \end{align*}
+  % Then eventually the RHS will be smaller than the RHS as long as $\alpha^t$ decreasing with time.
+  Averaging over time and let $\eta\rho n\le 1$ gives
+  \begin{align*}
+    \frac{\eta^2\zeta^2}{8}\le& 
+    \frac{12}{T}\sum_{t=0}^{T-1}\alpha^{t+1} 
+    + \eta \frac{f_i(\xx^0) - f_i^\star}{T}.
+  \end{align*}
+\end{proof}
+
+\subsection{Workers in the same cluster are converging.}
+\begin{proof}
+  Combine \eqref{eq:x:gd:delta} and \eqref{eq:x:gd:bar_c}, we have
+  \begin{align*}
+    &\norm*{\xx_i^{t+1} - \bar{\xx}_c^{t+1}}_2^2 \\
+    =& \norm*{
+      (1-\eta\rho c)(\xx_i^{t} - \bar{\xx}_c^{t})
+      - \eta ( \nabla f_i(\xx_i^t) - \tfrac{1}{c} \tsum_{k\in c}\nabla f_k(\xx_k^t) )
+      -\eta\rho(\Delta_i^t - \tfrac{1}{c}\tsum_{k\in c} \Delta_k^t )
+    }_2^2 \\
+    \le& (1-\eta\rho c) \norm*{\xx_i^{t} - \bar{\xx}_c^{t}}_2^2
+    + \frac{\eta}{\rho c} \norm*{\nabla f_i(\xx_i^t) - \tfrac{1}{c} \tsum_{k\in c}\nabla f_k(\xx_k^t)
+    + \rho(\Delta_i^t - \tfrac{1}{c}\tsum_{k\in c} \Delta_k^t )}_2^2 \\
+    \le& (1-\eta\rho c) \norm*{\xx_i^{t} - \bar{\xx}_c^{t}}_2^2
+    + \frac{2\eta}{\rho c} \left(
+      \norm*{\nabla f_i(\xx_i^t) - \tfrac{1}{c} \tsum_{k\in c}\nabla f_k(\xx_k^t)}_2^2
+      + \rho^2 \norm*{\Delta_i^t - \tfrac{1}{c}\tsum_{k\in c} \Delta_k^t }_2^2
+    \right).
+  \end{align*}
+  Given Assumption~\Cref{a:smooth} and \Cref{a:strong-growth}, the gradient distances have the following upper bound
+  \begin{align*}
+    &\norm*{\nabla f_i(\xx_i^t) - \tfrac{1}{c} \tsum_{k\in c}\nabla f_k(\xx_k^t)}_2^2
+    = \norm*{\nabla f_i(\xx_i^t) \pm \nabla f_i(\bar{\xx}_c^t) \pm \nabla \bar{f}_c(\bar{\xx}_c^t) - \tfrac{1}{c} \tsum_{k\in c}\nabla f_k(\xx_k^t)}_2^2 \\
+    \le& 3 \norm*{\nabla f_i(\xx_i^t) - \nabla f_i(\bar{\xx}_c^t)}_2^2
+    + 3 \norm*{\nabla f_i(\bar{\xx}_c^t) - \nabla \bar{f}_c(\bar{\xx}_c^t)}_2^2
+    + 3 \norm*{ \nabla \bar{f}_c(\bar{\xx}_c^t) - \tfrac{1}{c} \tsum_{k\in c}\nabla f_k(\xx_k^t)}_2^2 \\
+    \le& 3 L^2 \norm*{\xx_i^t - \bar{\xx}_c^t}_2^2 + 3M^2 \norm*{\nabla \bar{f}_c(\bar{\xx}_c^t)}_2^2 + \frac{3L^2}{c}\sum_{k\in c} \norm*{\xx_k^t - \bar{\xx}_c^t}_2^2.
+  \end{align*}
+  Now we average the above inequalities over $i\in c$, i.e.
+  \begin{align*}
+    \tfrac{1}{c}\tsum_{i\in c}\ \norm*{\xx_i^{t+1} - \bar{\xx}_c^{t+1}}_2^2
+    \le& 
+    \left(1-\eta\rho c + \tfrac{12L^2\eta}{\rho c} \right)
+    \tfrac{1}{c}\tsum_{i\in c} \norm*{\xx_i^{t} - \bar{\xx}_c^{t}}_2^2
+    + \tfrac{6M^2\eta}{\rho c} \norm*{\nabla \bar{f}_c(\bar{\xx}_c^t)}_2^2 \\
+    &+ \tfrac{2\eta\rho}{c}    \tfrac{1}{c}\tsum_{i\in c} \norm*{\Delta_i^t - \tfrac{1}{c}\tsum_{k\in c} \Delta_k^t }_2^2.
+  \end{align*}
+  By taking $\rho c \ge 5 L$ such that $-\eta\rho c + \tfrac{12L^2\eta}{\rho c}\le-\tfrac{1}{2}\eta\rho c$ and use the following equality
+  \begin{align*}
+    \tfrac{1}{c}\tsum_{i\in c} \norm*{\Delta_i^t - \tfrac{1}{c}\tsum_{k\in c} \Delta_k^t }_2^2 = \tfrac{1}{c}\tsum_{i\in c} \norm*{\Delta_i^t}_2^2 - \norm*{\tfrac{1}{c}\tsum_{k\in c} \Delta_k^t }_2^2
+  \end{align*}
+  we can have the following upper bound
+  \begin{align*}
+    \tfrac{1}{c}\tsum_{i\in c} \norm*{\xx_i^{t+1} - \bar{\xx}_c^{t+1}}_2^2
+    \le& 
+    \left(1-\tfrac{1}{2}\eta\rho c\right)
+    \tfrac{1}{c}\tsum_{k\in c} \norm*{\xx_i^{t} - \bar{\xx}_c^{t}}_2^2
+    + \tfrac{6M^2\eta}{\rho c} \norm*{\nabla \bar{f}_c(\bar{\xx}_c^t)}_2^2 \\
+    &+ \tfrac{2\eta\rho}{c} \left(\tfrac{1}{c}\tsum_{k\in c} \norm*{\Delta_i^t}_2^2 - \norm*{\tfrac{1}{c}\tsum_{k\in c} \Delta_k^t }_2^2\right).
+  \end{align*}
+  Let us sum $t=0$ to $T-2$ and divide by $T$,
+  \begin{align*}
+    \frac{1}{cT}\sum_{i\in c}\sum_{t=0}^{T-1} \norm*{\xx_i^{t} - \bar{\xx}_c^{t}}_2^2
+    \le& 
+    \frac{12M^2}{\rho^2 c^2 T} \sum_{t=0}^{T-1} \norm*{\nabla \bar{f}_c(\bar{\xx}_c^t)}_2^2 \\
+    & + \frac{4}{c^2} \left(\frac{1}{cT}\sum_{i\in c}\sum_{t=0}^{T-1} \norm*{\Delta_i^t}_2^2 - \frac{1}{T}\sum_{t=0}^{T-1}\norm*{\frac{1}{c}\sum_{k\in c} \Delta_k^t }_2^2\right).
+  \end{align*}
+
+  % Now that $\bar{\xx}_c^{t+1} = \frac{1}{c}\sum_{i\in c} \xx_i^{t+1}$, we have
+\end{proof}
+\subsection{2}
+\begin{proof}
+  We expand $\Delta_i^t$ as follows
+  \begin{align*}
+    % \norm*{\Delta_i^t}_2^2
+    % = \norm*{\sum_{k=1}^n (w_{ik}^t - \1_{i\in c}) \left(\xx_i^t - \xx_k^t\right)}_2^2
+    \Delta_i^t = & \sum_{k=1}^n (w_{ik}^t - \1_{i\in c}) \left(\xx_i^t - \xx_k^t\right) \\
+    =& \sum_{k\notin c} w_{ik}^t \left(\xx_i^t - \xx_k^t\right)
+    + \sum_{k\in c} (w_{ik}^t - 1) \left(\xx_i^t - \xx_k^t\right) \\
+    =& 
+    \sum_{\substack{k\notin c \\ w_{ik}^t=1}} w_{ik}^t \left(\xx_i^t - \xx_k^t\right)
+    + \sum_{\substack{k\in c \\ w_{ik}^t=0}} (w_{ik}^t - 1) \left(\xx_i^t - \xx_k^t\right) .
+  \end{align*}
+  We use Cauchy-Schwarz inequality to upper bound $\norm*{\Delta_i^t}_2^2$ as follows
+  \begin{align*}
+    \norm*{\Delta_i^t}_2^2\le& 
+    2 \underbrace{\norm*{\sum_{\substack{k\notin c \\ w_{ik}^t=1}} w_{ik}^t \left(\xx_i^t - \xx_k^t\right)}_2^2}_{T_1}
+    + 2 \underbrace{\norm*{\sum_{\substack{k\in c \\ w_{ik}^t=0}} (w_{ik}^t - 1) \left(\xx_i^t - \xx_k^t\right)}_2^2}_{T_2}.
+  \end{align*}
+  Now apply $(\sum_i a_i b_i)^2 \le (\sum_i a_i^2)(\sum_i b_i^2)$ to $T_1$ with 
+  \begin{align*}
+    a_i=\sqrt{w_{ik}^t}, \text{ and } b_i=\sqrt{w_{ik}^t} (\xx_i^t - \xx_k^t)
+  \end{align*}
+  which gives the following bound for $T_1$ 
+  \begin{align*}
+    T_1 \le& \sum_{\substack{k\notin c \\ w_{ik}^t=1}} w_{ik}^t \sum_{\substack{k\notin c \\ w_{ik}^t=1}} w_{ik}^t \norm*{ \xx_i^t - \xx_k^t}_2^2
+    \le \alpha^t \left(\sum_{\substack{k\notin c \\ w_{ik}^t=1}} 1\right)^2 
+    %\le \alpha^t(n-c)^2.
+  \end{align*}
+  On the other hand,
+  \begin{align*}
+    T_2
+    \le& \left(\sum_{\substack{k\in c \\ w_{ik}^t=0}} 1\right) \left(\sum_{\substack{k\in c \\ w_{ik}^t=0}} \norm*{ \xx_i^t - \xx_k^t}_2^2 \right) 
+    = \frac{1}{\alpha^t}\left(\sum_{\substack{k\in c \\ w_{ik}^t=0}} \alpha^t\right) \left(\sum_{\substack{k\in c \\ w_{ik}^t=0}} \norm*{ \xx_i^t - \xx_k^t}_2^2 \right) \\
+    \le& \frac{1}{\alpha^t}\left(\sum_{\substack{k\in c \\ w_{ik}^t=0}} \norm*{ \xx_i^t - \xx_k^t}_2^2 \right)^2.
+  \end{align*}
+  In order to minimize their sums we pick
+  \begin{align*}
+    \alpha^t = \left(\sum_{k\notin c} w_{ik}^t\right)^{-1} \left(\sum_{\substack{k\in c \\ w_{ik}^t=0}} \norm*{ \xx_i^t - \xx_k^t}_2^2 \right).
+  \end{align*}
+\end{proof}
+
+ 
+ \subsection{Proof of \Cref{th:consensus-distance:2}}\label{ssec:proof:consensus-distance:2}
+ \begin{proof}
+  Let $n_{i}^{t+1}:=\sum_{k=1}^n w_{ik}^{t+1}$.
+  Let us expand the distance $\xx_i^{t+1} - \xx_j^{t+1}$ between two workers with $w_{ij}^\star=1$, i.e.
+  \begin{multline*}
+    \xx_i^{t+1} - \xx_j^{t+1} \\
+    =\underbrace{\xx_i^t - \xx_j^t}_{T_1} - \underbrace{\eta(\nabla f_i(\xx_i^t) - \nabla f_j(\xx_j^t))}_{T_2} -\underbrace{\eta\rho \sum_{k=1}^n \left(w_{ik}^{t+1} (\xx_i^t - \xx_k^t) - w_{jk}^{t+1} (\xx_j^t - \xx_k^t) \right)}_{T_3}.
+  \end{multline*}
+  Let $a_{ij}^{t+1}=\rho\eta \sum_{k=1}^n \frac{w_{ik}^{t+1}+w_{jk}^{t+1}}{2}=\rho\eta\frac{n_i^{t+1}+n_j^{t+1}}{2}$ and add $- a_{ij}^{t+1} (\xx_i^t-\xx_j^t)$ both $T_1$ and $T_3$
+  \begin{align*}
+    \xx_i^{t+1} - \xx_j^{t+1}=&
+    (1-a_{ij}^{t+1})(\xx_i^t-\xx_j^t) - T_2 - T_3'
+  \end{align*}
+  where $T_3'$ is defined as follows
+  \begin{align*}
+    T_3'=&\eta\rho\sum_{k=1,k\neq i,j}^n \left( \frac{w_{ik}^{t+1}-w_{jk}^{t+1}}{2} \xx_i^t - 
+    \frac{w_{jk}^{t+1}-w_{ik}^{t+1}}{2} \xx_j^t \right) - \eta\rho\sum_{k=1,k\neq i,j}^n \left( w_{ik}^{t+1}-w_{jk}^{t+1} \right)\xx_k^t \\
+    =& \eta\rho\sum_{k=1,k\neq i,j}^n (w_{ik}^{t+1}-w_{jk}^{t+1}) \left( \frac{\xx_i^t+\xx_j^t}{2}  - 
+    \xx_k^t \right).
+  \end{align*}
+  The $\norm{\xx_i^{t+1} - \xx_j^{t+1}}_2^2$ has the following bound with $(a+b)^2\le(1+a_{ij}^{t+1})a^2 + (1+\frac{1}{a_{ij}^{t+1}}b^2)$
+  \begin{equation}\label{eq:consensus-distance:1}
+    \begin{split}      
+      \norm{\xx_i^{t+1} - \xx_j^{t+1}}_2^2
+    \le& (1+a_{ij}^{t+1}) (1-a_{ij}^{t+1})^2 \norm{\xx_i^t-\xx_j^t}_2^2 + \left(1+\frac{1}{a_{ij}^{t+1}}\right) \norm{T_2+T_3'}_2^2 \\
+    \le& (1-a_{ij}^{t+1}) \norm{\xx_i^t-\xx_j^t}_2^2 
+    +  \frac{2(1+a_{ij}^{t+1})}{a_{ij}^{t+1}} \norm{T_2}_2^2 
+    +  \frac{2(1+a_{ij}^{t+1})}{a_{ij}^{t+1}}\norm{T_3'}_2^2.
+    \end{split}
+  \end{equation} 
+  Now we bound the term $T_2$ and $T_3'$ separately. By \Cref{a:strong-growth} and \Cref{a:smooth}, we have
+  \begin{equation}\label{eq:consensus-distance:T2}
+    \begin{split}
+    \norm{T_2}_2^2 =& \eta^2 \norm{\nabla f_i(\xx_i^t) - \nabla f_i(\xx_j^t) + \nabla f_i(\xx_j^t) - \nabla f_j(\xx_j^t)}_2^2  \\
+    \le& 2 \eta^2 \norm{\nabla f_i(\xx_i^t) - \nabla f_i(\xx_j^t)}_2^2 + 2 \eta^2 \norm{\nabla f_i(\xx_j^t) - \nabla f_j(\xx_j^t)}_2^2 \\
+    \le& 2 \eta^2 L^2 \norm{\xx_i^t - \xx_j^t}_2^2 + 2 \eta^2 M^2 \norm{\nabla f_j(\xx_j^t)}_2^2.
+  \end{split}
+\end{equation}
+  Now we consider the term $\norm{T_3'}_2^2$ and use Cauchy-Schwarz inequality $(\sum_k a_k b_k)^2\le \sum_k a_k^2 \sum_k b_k^2$ where $a_k=\sqrt{|w_{ik}^{t+1}-w_{jk}^{t+1}|}$ and
+  \begin{align*}
+    b_k=
+    \sqrt{|w_{ik}^{t+1}-w_{jk}^{t+1}|} \text{sign}(w_{ik}^{t+1}-w_{jk}^{t+1}) \left( \frac{\xx_i^t+\xx_j^t}{2} -
+    \xx_k^t \right).
+  \end{align*}
+  Then $\norm{T_3'}_2^2$ has the following upper bound
+  \begin{align*}
+    \norm{T_3'}_2^2
+    \le& \eta^2 \rho^2 \sum_{k=1,k\neq i,j}^n |w_{ik}^{t+1}-w_{jk}^{t+1}| \sum_{k=1,k\neq i,j}^n |w_{ik}^{t+1}-w_{jk}^{t+1}| \norm*{ \frac{\xx_i^t+\xx_j^t}{2}  - \xx_k^t }_2^2.
+  \end{align*}
+  Without loss of generality, we assume $w_{ik}^{t+1} \ge w_{jk}^{t+1}$, 
+  \begin{align*}
+    |w_{ik}^{t+1}-w_{jk}^{t+1}| \norm*{ \frac{\xx_i^t+\xx_j^t}{2}  - \xx_k^t }_2^2
+    \le 2 w_{ik}^{t+1} \norm*{ \xx_i^t - \xx_k^t }_2^2
+    + 2|w_{ik}^{t+1}-w_{jk}^{t+1}| \norm*{ \frac{\xx_i^t-\xx_j^t}{2}}_2^2
+  \end{align*}
+
+  % We can further relax the upper bound
+  % \begin{align*}
+  %   \norm{T_3'}_2^2
+  %   \le& \eta^2 \rho^2 (n_i^{t+1} + n_j^{t+1}) \sum_{k=1}^n |w_{ik}^{t+1}-w_{jk}^{t+1}| \norm*{ \frac{\xx_i^t+\xx_j^t}{2}  - \xx_k^t }_2^2 \\
+  %   \le& \eta^2 \rho^2 (n_i^{t+1} + n_j^{t+1}) \sum_{k=1}^n \left( \tfrac{1}{2} |w_{ik}^{t+1}-w_{jk}^{t+1}| \norm*{ \xx_i^t - \xx_k^t }_2^2 + \tfrac{1}{2} |w_{ik}^{t+1}-w_{jk}^{t+1}| \norm*{ \xx_j^t  - \xx_k^t }_2^2 \right)\\
+  %   \le& \eta^2 \rho (n_i^{t+1} + n_j^{t+1}) \sum_{k=1}^n \left( \underbrace{w_{ik}^{t+1}}_{\text{Need to be greater than the other}} \frac{\rho}{2}\norm*{ \xx_i^t - \xx_k^t }_2^2 +  w_{jk}^{t+1} \frac{\rho}{2}\norm*{ \xx_j^t  - \xx_k^t }_2^2 \right).
+  % \end{align*}
+  The update $w^{t+1}_{ik} = \argmin_{w_{ik}} w_{ik} (\frac{\rho}{2}\norm*{ \xx_i^t - \xx_k^t }_2^2 - \alpha) $
+  indicates that $w^{t+1}_{ik} $
+  \begin{align*}
+    w^{t+1}_{ik}  \frac{\rho}{2}\norm*{ \xx_i^t - \xx_k^t }_2^2  \le w^{t+1}_{ik} \alpha.
+  \end{align*}
+  Then by $|w_{ik}^{t+1}-w_{jk}^{t+1}|\le w_{ik}^{t+1}+w_{jk}^{t+1}$, we have
+  \begin{align*}
+    \frac{\rho}{4}|w_{ik}^{t+1}-w_{jk}^{t+1}| \norm*{ \frac{\xx_i^t+\xx_j^t}{2}  - \xx_k^t }_2^2
+    \le w_{ik}^{t+1} \alpha
+    + \frac{\rho}{8} \norm*{ \xx_i^t-\xx_j^t }_2^2.
+  \end{align*}
+  By the symmetry of $i$ and $j$, we can further relax it to
+  \begin{align*}
+    \frac{\rho}{4}|w_{ik}^{t+1}-w_{jk}^{t+1}| \norm*{ \frac{\xx_i^t+\xx_j^t}{2}  - \xx_k^t }_2^2
+    \le (w_{ik}^{t+1}+w_{jk}^{t+1}) \alpha
+    + \frac{\rho}{8} \norm*{ \xx_i^t-\xx_j^t }_2^2.
+  \end{align*}
+  Then $\norm{T_3'}_2^2$ can be bounded as below
+  \begin{equation}\label{eq:consensus-distance:T3}
+    \begin{split}      
+    \norm{T_3'}_2^2
+    \le& 4\eta^2 \rho (n_i^{t+1} + n_j^{t+1}) \sum_{k=1}^n \left( w_{ik}^{t+1} +  w_{jk}^{t+1} \right)\alpha 
+    + \eta^2\rho^2 (n_i^{t+1} + n_j^{t+1}) \norm*{ \xx_i^t-\xx_j^t }_2^2 \\
+    =& \tfrac{16}{\rho}(a_{ij}^{t+1})^2\alpha + 2\eta\rho a_{ij}^{t+1} \norm*{ \xx_i^t-\xx_j^t }_2^2.
+  \end{split}
+\end{equation}
+
+  \textbf{Now we look at \eqref{eq:consensus-distance:1} and would like to have a recursion of $\norm{\xx_i^{t+1} - \xx_j^{t+1}}_2^2$.} We would like the coefficient of $\norm{\xx_i^t-\xx_j^t}_2^2$ to be less than 1 by requiring $a_{ij}^{t+1}\le1$.
+  Then combined with \eqref{eq:consensus-distance:T2} and \eqref{eq:consensus-distance:T3}
+  \begin{equation*}
+      \norm{\xx_i^{t+1} \!-\! \xx_j^{t+1}}_2^2
+      \!\le\!(1\!-\!a_{ij}^{t+1} \!+\! \tfrac{8L^2\eta^2}{a_{ij}^{t+1}} + 8\eta\rho ) \norm{\xx_i^t\!-\!\xx_j^t}_2^2 + \tfrac{8M^2\eta^2}{a_{ij}^{t+1}} \norm{\nabla f_j(\xx_j^t)}_2^2 + \tfrac{64a_{ij}^{t+1}}{\rho} \alpha.
+  \end{equation*}
+  Again, we pick $\eta\le\frac{a_{ij}^{t+1}}{8L}$ let $\frac{8L^2\eta^2}{a_{ij}^{t+1}}\le\frac{1}{4}a_{ij}^{t+1}$, and pick $\eta\rho\le \frac{a_{ij}^{t+1}}{32}$ then
+  \begin{align*}
+    \norm{\xx_i^{t+1} \!-\! \xx_j^{t+1}}_2^2
+    \!\le&\!(1\!-\!\tfrac{1}{2}a_{ij}^{t+1}) ) \norm{\xx_i^t\!-\!\xx_j^t}_2^2 + \tfrac{8M^2\eta^2}{a_{ij}^{t+1}} \norm{\nabla f_j(\xx_j^t)}_2^2 + \tfrac{64a_{ij}^{t+1}}{\rho} \alpha.
+  \end{align*}
+  Since we always have $w_{ii}=w_{jj}=1$, we have lower bound $n_i^t,n_j^t\ge1$ and
+  \begin{equation}
+    a_{ij}^{t+1} = \rho\eta \tfrac{n_i^t+n_j^t}{2} \ge \rho\eta \text{ and }
+    a_{ij}^{t+1} \le \rho\eta n \le 1.
+  \end{equation}
+  As $\eta\le\frac{a_{ij}^{t+1}}{4L}$, $\eta$ should be smaller than the minimum of $a_{ij}^{t+1}$, i.e. $\eta\le\frac{\rho\eta}{4L}\le\frac{1}{4nL}$. This is requires $\rho\ge 4L$.
+
+  Now we sum $t=0$ to $T-2$ and add $\norm{\xx_i^0-\xx_j^0}_2^2=0$ to both sides and divide by $T$
+  \begin{align*}
+    \frac{1}{T} \sum_{t=0}^{T-1} \norm{\xx_i^{t} - \xx_j^{t}}_2^2
+    \le& \frac{16M^2}{\rho^2} \frac{1}{T} \sum_{t=0}^{T-1} \norm{\nabla f_j(\xx_j^t)}_2^2 
+    +\frac{128\alpha}{\rho^2\eta} \frac{1}{T} \sum_{t=0}^{T-1}a_{ij}^{t+1} \\
+    \le& \frac{16M^2}{\rho^2} \frac{1}{T} \sum_{t=0}^{T-1} \norm{\nabla f_j(\xx_j^t)}_2^2 
+    +\frac{128\alpha}{\rho^2\eta}.
+  \end{align*}
+  We fix $\rho=4L$ and $\eta\le\min\{ \frac{1}{4nL}, \frac{1}{128nL} \}=\frac{1}{128nL}$.
+  From \Cref{th:convergence}, then 
+  \begin{align*}
+    \frac{1}{T} \sum_{t=0}^{T-1} \norm{\xx_i^{t} - \xx_j^{t}}_2^2
+    \le& \frac{M^2}{L^2} \left(\frac{2(f_i(\xx^{0}) - f_i^\star)}{T\eta} + \cO\left(\frac{1}{T\eta}\right) \right)
+    + \frac{8\alpha}{L^2\eta}.
+  \end{align*}
+  As $\rho\alpha\le\frac{1}{n^2 \eta T}$, we have $\alpha\le\frac{1}{4Ln^2\eta T}$ and
+  \begin{align*}
+    \frac{1}{T} \sum_{t=0}^{T-1} \norm{\xx_i^{t} - \xx_j^{t}}_2^2
+    \le& \frac{M^2}{L^2\eta}\left( \frac{2(f_i(\xx^{0}) - f_i^\star)}{T} + \cO\left(\frac{1}{T}\right) \right)
+    + \frac{2}{L^3n^2\eta^2 T}.
+  \end{align*}
+\end{proof}
+
+
+\subsection{Proof of \Cref{th:convergence}}\label{ssec:proof:convergence:1}
+\begin{proof}
+  We use Cauchy-Schwarz inequality $(\sum_k a_k b_k)^2\le (\sum_k a_k^2)(\sum_k b_k^2)$ to 
+  \begin{align*}
+   \frac{\rho}{2}\norm*{\sum_{k=1}^n w^{t+1}_{ik} \left(\xx^t_i - \xx^t_k\right) }_2^2
+   \le& n_i^{t+1} \sum_{k=1}^n w^{t+1}_{ik} \left(\frac{\rho}{2} \norm*{\xx^t_i - \xx^t_k}_2^2 \right)
+  \end{align*}
+  where $n_i^{t+1}:=\sum_{k=1}^n w_{ik}^{t+1}$ and
+  \begin{align*}
+   a_k=\sqrt{w_{ik}^{t+1}},b_k=\sqrt{w_{ik}^{t+1}}(\xx_i^t-\xx_k^t).
+  \end{align*}
+  Then by the definition of $w_{ik}^{t+1}$, we have $w_{ik}^{t+1}\frac{\rho}{2} \norm*{\xx^t_i - \xx^t_k}_2^2 \le w_{ik}^{t+1} \alpha$
+   \begin{align*}
+     \frac{\rho}{2}\norm*{\sum_{k=1}^n w^{t+1}_{ik} \left(\xx^t_i - \xx^t_k\right) }_2^2
+     =& n_i^{t+1} \sum_{k=1}^n w^{t+1}_{ik} \alpha
+     \le \alpha\left(n_i^{t+1}\right)^2.
+   \end{align*}
+     Then by taking $\alpha\rho\le\frac{1}{n^2\eta T}$, we know that
+   \begin{align*}
+     \frac{1}{T}\sum_{t=0}^{T-1} \norm*{\nabla f_i(\xx_i^t)}_2^2
+     \le& \frac{2(f_i(\xx^{0}) - f_i^\star)}{T\eta}
+     + 2\rho\alpha\frac{1}{T}\sum_{t=0}^{T-1}\left(n_i^{t+1}\right)^2. \\
+     \le& \frac{2(f_i(\xx^{0}) - f_i^\star)}{T\eta} + \cO\left(\frac{1}{T\eta}\right).
+   \end{align*}
+ \end{proof}
+
+\subsection{Proof of \Cref{th:consensus-distance:balanced}}\label{ssec:proof:consensus-distance:balanced}
+\begin{proof}
+  Since we always have $w_{ii}=w_{jj}=1$, we have lower bound $n_i^t,n_j^t\ge1$ and
+  \begin{equation}
+    a_{ij}^{t+1} = \rho\eta \tfrac{n_i^t+n_j^t}{2} \ge \rho\eta \frac{n}{K} \text{ and }
+    a_{ij}^{t+1} \le \rho\eta n \le 1.
+  \end{equation}
+  As $\eta\le\frac{a_{ij}^{t+1}}{4L}$, $\eta$ should be smaller than the minimum of $a_{ij}^{t+1}$, i.e. $\eta\le\frac{\rho\eta n}{4LK}\le\frac{1}{4LK}$. This is requires $\rho\ge\frac{4LK}{n}$.
+
+  Now we sum $t=0$ to $T-2$ and add $\norm{\xx_i^0-\xx_j^0}_2^2=0$ to both sides and divide by $T$
+  \begin{align*}
+    \frac{1}{T} \sum_{t=0}^{T-1} \norm{\xx_i^{t} - \xx_j^{t}}_2^2
+    \le& \frac{16M^2K^2}{\rho^2n^2} \frac{1}{T} \sum_{t=0}^{T-1} \norm{\nabla f_j(\xx_j^t)}_2^2 
+    +\frac{32\alpha K}{\rho^2\eta n} \frac{1}{T} \sum_{t=0}^{T-1}a_{ij}^{t+1} \\
+    \le& \frac{16M^2K^2}{\rho^2n^2} \frac{1}{T} \sum_{t=0}^{T-1} \norm{\nabla f_j(\xx_j^t)}_2^2 
+    +\frac{32\alpha K}{\rho^2\eta n}.
+  \end{align*}
+  From \Cref{th:convergence} and take $\rho=\frac{4LK}{n}$, then
+  \begin{align*}
+    \frac{1}{T} \sum_{t=0}^{T-1} \norm{\xx_i^{t} - \xx_j^{t}}_2^2
+    \le& \frac{M^2}{L^2} \left(\frac{2(f_i(\xx^{0}) - f_i^\star)}{T\eta} + \cO\left(\frac{1}{T\eta}\right) \right)
+    +\frac{2\alpha n}{L^2K\eta}.
+  \end{align*}
+  As $\rho\alpha\le\frac{1}{n^2 \eta T}$, we have $\alpha\le\frac{1}{4LnK\eta T}$ and
+  \begin{align*}
+    \frac{1}{T} \sum_{t=0}^{T-1} \norm{\xx_i^{t} - \xx_j^{t}}_2^2
+    \le& \frac{M^2}{L^2\eta}\left( \frac{2(f_i(\xx^{0}) - f_i^\star)}{T} + \cO\left(\frac{1}{T}\right) \right)
+    + \frac{1}{2L^3K^2\eta^2T}
+  \end{align*}
+\end{proof}
+
+
+\section{Alternatives  (remove later)}
+\subsection{Algorithm}
+We use ADMM type of optimization strategies.
+
+\begin{enumerate}
+  \item Update $X$ by gradient descent.
+  \begin{align}
+    \partial_{x_{i,s}} F =& \frac{1}{n}\partial_{x_{i,s}} f_i(x^t_{i,s},x^t_{i,p}) + \sum_{j=1}^n w^t_{ij} \text{sign}(j-i) \lambda^t_{ij}  \\
+    \partial_{x_{i,p}} F =& \frac{1}{n}\partial_{x_{i,p}} f_i(x^t_{i,s},x^t_{j,p})
+  \end{align}
+  Update this with gradient
+  \begin{equation}
+    x_{i}^{t+1} = x_i^t - \eta \partial_{x_{i}} F(W^t;\lambda_{ij}^t, X^t).
+  \end{equation}
+  \item Compute gradient with respect to $\lambda_{ij}$
+  \begin{align}
+    \partial_{\lambda_{ij}} F = w_{ij} (x_{i,s} - x_{j,s}).
+  \end{align}
+  Update $\lambda_{ij}$ by gradient ascent
+  \begin{equation}
+    \lambda_{ij}^{t+1} = \lambda_{ij}^t + \gamma \partial_{\lambda_{ij}} F(W^t;\lambda_{ij}^t, X^{t+1})
+  \end{equation}
+  \item Update $W$ by Frank-Wolfe.
+  \begin{itemize}
+    \item Compute $\partial_{w_{ij}} F = \left<\lambda_{ij}, x_{i,s} - x_{j,s} \right> - \alpha$
+    \item Minimize $\mathbf{s}^\top \nabla F(W)$ subject to $s_{ij} \in [0,1]$, $s_{ij}=s_{ji}$, $s_{ii}=1$.
+    \item Set step size $\beta=2/(t+2)$ or alternative strategies.
+    \item Update $W\leftarrow W + \beta(\mathbf{s} - W)$
+  \end{itemize}
+  Or in other words
+  \begin{align}
+    s_{ij}^{t+1} =& \tfrac{1}{2} \left(1+\text{sign}\left( - \partial_{w_{ij}} F(W^t; \lambda_{ij}^{t+1}, X^{t+1})\right) \right) \\
+    w_{ij}^{t+1} =& w_{ij}^t + \beta(s_{ij}^{t+1} - w_{ij}^t)
+  \end{align}
+\end{enumerate}
+
+\section{Fully connected graph (remove later)}
 \subsection{Problem formulation}
 In this section, we assume all workers share same stationary points or minimizers. That is, the communication graph is static and fully connected, i.e.
-\begin{assumption}[Strong growth condition]\label{a:strong-growth}
+\begin{assumption}[Strong growth condition]\label{a:strong-growth:1}
   For $i\in[n]$ and $\xx\in\R^d$
   \begin{align*}
     \norm*{\nabla f_i(\xx) - \nabla \bar{f}(\xx)}_2 \le M \norm*{\nabla \bar{f}(\xx)}_2.
@@ -219,7 +1012,7 @@ Before analyzing $\frac{1}{T} \sum_{t=0}^{T-1} \norm*{L(\bar{\xx}^{t}-\bar{\xx}^
     \le& 3 L^2 \norm*{\xx_i^t - \bar{\xx}^t}_2^2 + 3 M^2 \norm*{ \nabla \bar{f}(\bar{\xx}^t) }_2^2 + \frac{3}{n} \sum_{k=1}^n \norm*{\nabla f_k(\bar{\xx}^t) - \nabla f_k(\xx_k^t)}_2^2 \\
     \le& 3 L^2 \norm*{\xx_i^t - \bar{\xx}^t}_2^2 + 3 M^2 \norm*{ \nabla \bar{f}(\bar{\xx}^t) }_2^2 + \frac{3L^2}{n} \sum_{k=1}^n \norm*{\xx_k^t - \bar{\xx}^t}_2^2
   \end{align*}
-  where we use \Cref{a:smooth,a:strong-growth} in the second inequality. Now we average over $i=1,\ldots,n$
+  where we use \Cref{a:smooth,a:strong-growth:1} in the second inequality. Now we average over $i=1,\ldots,n$
   \begin{align*}
     \frac{1}{n}\sum_{i=1}^n\norm*{\nabla f_i(\xx_i^t) - \frac{1}{n}\sum_{k=1}^n\nabla f_k(\xx_k^t)}_2^2
     \le&  3 M^2 \norm*{ \nabla \bar{f}(\bar{\xx}^t) }_2^2 + \frac{6L^2}{n} \sum_{k=1}^n \norm*{\xx_k^t - \bar{\xx}^t}_2^2.
@@ -248,7 +1041,7 @@ Before analyzing $\frac{1}{T} \sum_{t=0}^{T-1} \norm*{L(\bar{\xx}^{t}-\bar{\xx}^
 \end{proof}
 Now we estimate $\norm*{L(\bar{\xx}^{t}-\bar{\xx}^{t+1}) - \nabla \bar{f}(\bar{\xx}^{t})}_2^2$ in \Cref{lemma:sd:1}.
 \begin{theorem}
-  Suppose that \Cref{a:smooth,a:lower-bound,a:strong-growth} hold. If we set $\eta\le \frac{1}{\sqrt{24(1+M^2)}L}$ and $\rho=\frac{1}{n\eta}$, then the recursion~\eqref{eq:x:gd:1} ensures that
+  Suppose that \Cref{a:smooth,a:lower-bound,a:strong-growth:1} hold. If we set $\eta\le \frac{1}{\sqrt{24(1+M^2)}L}$ and $\rho=\frac{1}{n\eta}$, then the recursion~\eqref{eq:x:gd:1} ensures that
   \begin{align*}
     \frac{1}{T} \sum_{t=0}^{T-1} \norm*{\nabla \bar{f}(\bar{\xx}^{t})}_2^2
     \le \frac{4(\bar{f}(\xx^{0}) - \bar{f}^\star)}{\eta T}.
@@ -287,7 +1080,7 @@ Now we estimate $\norm*{L(\bar{\xx}^{t}-\bar{\xx}^{t+1}) - \nabla \bar{f}(\bar{\
     \frac{1}{T} \sum_{t=0}^{T-1} \norm*{\nabla \bar{f}(\bar{\xx}^{t})}_2^2
     \le \frac{4(\bar{f}(\xx^{0}) - \bar{f}^\star)}{T\eta}.
   \end{align*}
-  In order to minimize the right hand side, we maximize the stepsize $\eta$  that satisfy the following constraints
+  In order to minimize the right hand side, we maximize the step-size $\eta$  that satisfy the following constraints
   \begin{align*}
     n\rho\eta\le 1 \text{ and } n\rho\eta\ge\max\left\{\frac{1}{2}, 12(1+M^2)L^2\eta^2\right\}, 
     \text{ and } \eta\le \frac{1}{L}.
@@ -298,44 +1091,6 @@ Now we estimate $\norm*{L(\bar{\xx}^{t}-\bar{\xx}^{t+1}) - \nabla \bar{f}(\bar{\
     \le& \frac{2(\bar{f}(\xx^{0}) - \bar{f}^\star)}{L^2\eta T}.
   \end{align*}
 \end{proof}
-
-\newpage
-\appendix
-
-\subsection{Algorithm}
-We use ADMM type of optimization strategies.
-
-\begin{enumerate}
-  \item Update $X$ by gradient descent.
-  \begin{align}
-    \partial_{x_{i,s}} F =& \frac{1}{n}\partial_{x_{i,s}} f_i(x^t_{i,s},x^t_{i,p}) + \sum_{j=1}^n w^t_{ij} \text{sign}(j-i) \lambda^t_{ij}  \\
-    \partial_{x_{i,p}} F =& \frac{1}{n}\partial_{x_{i,p}} f_i(x^t_{i,s},x^t_{j,p})
-  \end{align}
-  Update this with gradient
-  \begin{equation}
-    x_{i}^{t+1} = x_i^t - \eta \partial_{x_{i}} F(W^t;\lambda_{ij}^t, X^t).
-  \end{equation}
-  \item Compute gradient with respect to $\lambda_{ij}$
-  \begin{align}
-    \partial_{\lambda_{ij}} F = w_{ij} (x_{i,s} - x_{j,s}).
-  \end{align}
-  Update $\lambda_{ij}$ by gradient ascent
-  \begin{equation}
-    \lambda_{ij}^{t+1} = \lambda_{ij}^t + \gamma \partial_{\lambda_{ij}} F(W^t;\lambda_{ij}^t, X^{t+1})
-  \end{equation}
-  \item Update $W$ by Frank-Wolfe.
-  \begin{itemize}
-    \item Compute $\partial_{w_{ij}} F = \left<\lambda_{ij}, x_{i,s} - x_{j,s} \right> - \alpha$
-    \item Minimize $\mathbf{s}^\top \nabla F(W)$ subject to $s_{ij} \in [0,1]$, $s_{ij}=s_{ji}$, $s_{ii}=1$.
-    \item Set step size $\beta=2/(t+2)$ or alternative strategies.
-    \item Update $W\leftarrow W + \beta(\mathbf{s} - W)$
-  \end{itemize}
-  Or in other words
-  \begin{align}
-    s_{ij}^{t+1} =& \tfrac{1}{2} \left(1+\text{sign}\left( - \partial_{w_{ij}} F(W^t; \lambda_{ij}^{t+1}, X^{t+1})\right) \right) \\
-    w_{ij}^{t+1} =& w_{ij}^t + \beta(s_{ij}^{t+1} - w_{ij}^t)
-  \end{align}
-\end{enumerate}
 
 
 
