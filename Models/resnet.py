@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from Models.base_model import BaseModel
+from models.base_model import BaseModel
 from torch import Tensor
 from typing import Type
 class BasicBlock(nn.Module):
@@ -11,7 +11,8 @@ class BasicBlock(nn.Module):
         out_channels: int,
         stride: int = 1,
         expansion: int = 1,
-        downsample: nn.Module = None
+        downsample: nn.Module = None,
+        config=None,
     ) -> None:
         super(BasicBlock, self).__init__()
         # Multiplicative factor for the subsequent conv2d layer's output channels.
@@ -147,7 +148,7 @@ class ResNet(BaseModel):
 
 
 class ResNet9(BaseModel):
-    def __init__(self, client = None, in_channels = 3, num_classes = 100):
+    def __init__(self, args=None, client=None, in_channels=3, num_classes=100):
         super(ResNet9, self).__init__()
         # print('in channel', in_channels)
         self.conv1 = self.conv_block(in_channels, 64)
@@ -163,7 +164,7 @@ class ResNet9(BaseModel):
                                         nn.Dropout(0.2),
                                         nn.Linear(512, num_classes))
 
-    def forward(self, xb):
+    def forward(self, xb, targets=None, get_logits=False):
         out = self.conv1(xb)
         out = self.conv2(out)
         out = self.res1(out) + out
@@ -171,4 +172,13 @@ class ResNet9(BaseModel):
         out = self.conv4(out)
         out = self.res2(out) + out
         out = self.classifier(out)
-        return out
+
+        if targets is not None:
+            # if we are given some desired targets also calculate the loss
+            loss = F.cross_entropy(out, targets)
+        else:
+            loss = None
+
+        logits = out if get_logits else None
+
+        return {'logits': logits, 'loss': loss}

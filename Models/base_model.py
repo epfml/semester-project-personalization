@@ -4,17 +4,19 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 class BaseModel(ABC, nn.Module):
-    def __init__(self):
+    def __init__(self, args=None):
         super(BaseModel, self).__init__()
-        self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        # self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         self.criterion = nn.CrossEntropyLoss
         self.previous_momentum = None
+        self.args = args
 
     def zero_grad(self):
         """set gradients of the model to zero"""
         for p in self.parameters():
             if p.grad is not None:
-                p.grad = torch.zeros(p.grad.shape, device=self.device)
+                p.grad.detach_()
+                p.grad.zero_()
         return
 
     def get_gradients(self):
@@ -24,29 +26,35 @@ class BaseModel(ABC, nn.Module):
             gradients.append(p.grad)
         return gradients
 
-    def get_momentum(self, momentum_param = 0.9):
+    def get_momentum(self, momentum_param=0.9):
         """return the momentum of the model"""
         gradients = self.get_gradients()
+        # breakpoint()
         if self.previous_momentum is None:
-            return gradients
+            self.previous_momentum = []
+            for i in range(len(gradients)):
+                self.previous_momentum.append(gradients[i])
         else:
-            momentum = []
             for i, p in enumerate(self.parameters()):
-                momentum.append(momentum_param*self.previous_momentum[i] + (1 - momentum_param)*gradients[i])
-            return momentum
+                self.previous_momentum[i] = momentum_param*self.previous_momentum[i] + (1 - momentum_param)*gradients[i]
+                # self.previous_momentum[i].mul_(momentum_param)
+                # self.previous_momentum[i].add_(gradients[i], alpha=(1 - momentum_param))
+                # momentum.append(momentum_param*self.previous_momentum[i] + (1 - momentum_param)*gradients[i])
+
+        return self.previous_momentum
 
     def update(self, gradients, learning_rate=0.1):
         """update the model parameters with the gradients and the given learning rate"""
         for i, p in enumerate(self.parameters()):
             if gradients[i] is not None:
-                p.data -= learning_rate*gradients[i]
+                p.data.add_(gradients[i].to(p.device), alpha=-learning_rate)
 
         return
 
     def set_params(self, params):
         """set the model parameters to the given params"""
         for i, p in enumerate(self.parameters()):
-            p.data = params[i].clone()
+            p.data = params[i].data.clone().to(p.device)
 
         return
 

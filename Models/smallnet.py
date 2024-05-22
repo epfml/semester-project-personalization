@@ -2,11 +2,11 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from Models.base_model import BaseModel
+from models.base_model import BaseModel
 
 
 class SmallNet(BaseModel):
-    def __init__(self, client = None):
+    def __init__(self, args=None, client=None, config=None):
         """initializing a simple NN with 2 convolutional layers and 2 fully connected layers"""
         super(SmallNet, self).__init__()
         torch.autograd.set_detect_anomaly(True)
@@ -18,7 +18,7 @@ class SmallNet(BaseModel):
         self.client = client
 
 
-    def forward(self, x):
+    def forward(self, x, targets=None, get_logits=False):
         """rewriting the forward pass"""
 
         x = F.relu(F.max_pool2d(self.conv1(x), 2))
@@ -28,4 +28,13 @@ class SmallNet(BaseModel):
         x = F.dropout(x, training=self.training)
         x = self.fc2(x)
 
-        return F.log_softmax(x, dim=1)
+        if targets is not None:
+            # if we are given some desired targets also calculate the loss
+            loss = F.cross_entropy(x, targets)
+        else:
+            loss = None
+
+        logits = x if get_logits else None
+
+        return {'logits': logits, 'loss': loss}
+
